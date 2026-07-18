@@ -39,7 +39,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/', require('./routes/search')); //Tara's search
+app.use('/', require('./routes/search')); // Search & Filter routes (Tara)
 // app.use('/', require('./routes/auth'));
 // app.use('/', require('./routes/pantry'));
 
