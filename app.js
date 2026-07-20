@@ -145,9 +145,18 @@ res.redirect('/');
 });
 
 // Search & Filter routes (Tara)
-app.use('/', require('./routes/search')); 
-// app.use('/', require('./routes/auth'));
-// app.use('/', require('./routes/pantry'));
+app.get('/search', (req, res) => {
+    const db = req.db;
+    // your search/filter query here
+    res.render('search', { items: results, categories: categories, /* ...etc */ });
+});
+
+app.get('/expiring', (req, res) => {
+    const db = req.db;
+    // your expiring-soon query here
+    res.render('expiring', { items: results });
+});
+
 
 // Starting the server
 app.listen(3000, () => {
