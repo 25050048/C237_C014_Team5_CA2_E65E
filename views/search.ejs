@@ -1,0 +1,61 @@
+// Pantry Search & Filter page 
+
+<%- include('../partials/header') %>
+
+<div class="container">
+
+  <h1>Search Pantry Items</h1>
+
+  // Filter bar (search, category, storage, expiry, sort)
+  <%- include('../partials/filterBar', {
+    categories: categories,
+    search: search,
+    selectedCategory: selectedCategory,
+    selectedStorage: selectedStorage,
+    selectedExpiry: selectedExpiry,
+    selectedSort: selectedSort
+  }) %>
+
+  // Results
+  <table class="pantry-table">
+    <thead>
+      <tr>
+        <th>Item Name</th>
+        <th>Category</th>
+        <th>Storage</th>
+        <th>Quantity</th>
+        <th>Expiry Date</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (items.length === 0) { %>
+        <tr>
+          <td colspan="6">No items found matching your search/filter.</td>
+        </tr>
+      <% } else { %>
+        <% items.forEach(function(item) { %>
+          <tr>
+            <td><%= item.name %></td>
+            <td><%= item.category_name %></td>
+            <td><%= item.storage %></td>
+            <td><%= item.quantity %></td>
+            <td><%= item.expiry_date %></td>
+            <td>
+              <% if (item.days_remaining < 0) { %>
+                <span class="badge badge-expired">🔴 Expired</span>
+              <% } else if (item.days_remaining <= 3) { %>
+                <span class="badge badge-soon">🟡 Expiring Soon</span>
+              <% } else { %>
+                <span class="badge badge-safe">🟢 Safe</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      <% } %>
+    </tbody>
+  </table>
+
+</div>
+
+<%- include('../partials/footer') %>
