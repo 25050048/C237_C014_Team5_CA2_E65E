@@ -144,6 +144,61 @@ req.session.destroy();
 res.redirect('/');
 });
 
+// Dashboard route (Tassie)
+app.get('/dashboard', (req, res) => {
+
+    const sql = "SELECT * FROM ingredients";
+
+    connection.query(sql, (err, results) => {
+
+        if (err) {
+            console.error(err);
+            return res.send("Database Error");
+        }
+
+        const today = new Date();
+        const sevenDaysLater = new Date();
+        sevenDaysLater.setDate(today.getDate() + 7);
+
+        const lowStockIngredients = results.filter(ingredient =>
+            ingredient.quantity <= ingredient.minimumStock
+        );
+
+        const expiredIngredients = results.filter(ingredient =>
+            new Date(ingredient.expiryDate) < today
+        );
+
+        const expiringSoonIngredients = results.filter(ingredient => {
+
+            const expiryDate = new Date(ingredient.expiryDate);
+
+            return expiryDate >= today && expiryDate <= sevenDaysLater;
+
+        });
+
+        res.render("dashboard", {
+
+            totalIngredients: results.length,
+
+            lowStockCount: lowStockIngredients.length,
+
+            expiredCount: expiredIngredients.length,
+
+            expiringSoonCount: expiringSoonIngredients.length,
+
+            lowStockIngredients,
+
+            expiredIngredients,
+
+            expiringSoonIngredients
+
+        });
+
+    });
+
+});
+
+
 // Search & Filter routes (Tara)
 app.get('/search', (req, res) => {
     const db = req.db;
