@@ -6,7 +6,7 @@ const app = express();
 
 // Database connection
 const db = mysql.createConnection({
-    host: 'c237-marlina-mysql.msql.database.azure.com',
+    host: 'c237-marlina-mysql.mysql.database.azure.com',
     user: 'c237_014',
     password: 'c237014@2026',
     database: 'c237_014_team5_ca2',
