@@ -138,6 +138,44 @@ app.get('/admin', checkAuthenticated, checkAdmin, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
+// Inventory board: Good / Close to Expiry / Expired (rizq)
+app.get('/board', checkAuthenticated, (req, res) => {
+    req.db.query('SELECT * FROM ingredients', (err, results) => {
+        if (err) {
+            throw err;
+        }
+
+        const NEAR_EXPIRY_DAYS = 7;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const goodItems = [];
+        const nearExpiryItems = [];
+        const expiredItems = [];
+
+        results.forEach((item) => {
+            const expiry = new Date(item.expiryDate);
+            expiry.setHours(0, 0, 0, 0);
+            const daysUntilExpiry = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
+            item.daysUntilExpiry = daysUntilExpiry;
+
+            if (daysUntilExpiry < 0) {
+                expiredItems.push(item);
+            } else if (daysUntilExpiry <= NEAR_EXPIRY_DAYS) {
+                nearExpiryItems.push(item);
+            } else if (item.quantity > item.minimumStock) {
+                goodItems.push(item);
+            }
+        });
+
+        goodItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+        nearExpiryItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+        expiredItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+
+        res.render('board', { user: req.session.user, goodItems, nearExpiryItems, expiredItems });
+    });
+});
+
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
