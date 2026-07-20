@@ -1,9 +1,9 @@
-// Search & Filter bar for Pantry
-// Submits as a GET request so filters show up in the URL query string
+<%# Search & Filter bar for Pantry %>
+<%# Submits as a GET request so filters show up in the URL query string %>
 
-<form action="/pantry" method="GET" class="filter-bar">
+<form action="/search" method="GET" class="filter-bar">
 
-  // Search by item name
+  <%# Search by item name %>
   <input
     type="text"
     name="search"
@@ -11,7 +11,7 @@
     value="<%= typeof search !== 'undefined' ? search : '' %>"
   >
 
-  // Filter by category
+  <%# Filter by category %>
   <select name="category">
     <option value="">All Categories</option>
     <% categories.forEach(function(cat) { %>
@@ -22,7 +22,7 @@
     <% }); %>
   </select>
 
-  // Filter by storage location
+  <%# Filter by storage location %>
   <select name="storage">
     <option value="">All Storage</option>
     <option value="pantry"  <%= (typeof selectedStorage !== 'undefined' && selectedStorage === 'pantry')  ? 'selected' : '' %>>Pantry</option>
@@ -30,7 +30,7 @@
     <option value="freezer" <%= (typeof selectedStorage !== 'undefined' && selectedStorage === 'freezer') ? 'selected' : '' %>>Freezer</option>
   </select>
 
-  // Filter by expiry status
+  <%# Filter by expiry status %>
   <select name="expiry">
     <option value="">All Items</option>
     <option value="expired" <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === 'expired') ? 'selected' : '' %>>Expired</option>
@@ -38,7 +38,7 @@
     <option value="7days"   <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === '7days')   ? 'selected' : '' %>>Expiring in 7 Days</option>
   </select>
 
-  // Sort options
+  <%# Sort options %>
   <select name="sort">
     <option value="">Sort By</option>
     <option value="expiry_asc" <%= (typeof selectedSort !== 'undefined' && selectedSort === 'expiry_asc') ? 'selected' : '' %>>Expiry Date (Soonest)</option>
@@ -48,6 +48,6 @@
   </select>
 
   <button type="submit">Apply Filters</button>
-  <a href="/pantry" class="clear-filters">Clear</a>
+  <a href="/search" class="clear-filters">Clear</a>
 
 </form>
