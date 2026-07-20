@@ -144,8 +144,8 @@ req.session.destroy();
 res.redirect('/');
 });
 
-// Routes
-app.use('/', require('./routes/search')); // Search & Filter routes (Tara)
+// Search & Filter routes (Tara)
+app.use('/', require('./routes/search')); 
 // app.use('/', require('./routes/auth'));
 // app.use('/', require('./routes/pantry'));
 
