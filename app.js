@@ -183,59 +183,85 @@ res.redirect('/');
 });
 
 // Dashboard route (Tassie)
-app.get('/dashboard', (req, res) => {
+app.get('/dashboard', requireLogin, async (req, res) => {
+    try {
+        const [totalResults] = await db.query(`
+            SELECT COUNT(*) AS totalIngredients
+            FROM ingredients
+        `);
 
-    const sql = "SELECT * FROM ingredients";
+        const [lowStockIngredients] = await db.query(`
+            SELECT
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE quantity <= minimumStock
+            ORDER BY quantity ASC
+        `);
 
-    connection.query(sql, (err, results) => {
+        const [expiredIngredients] = await db.query(`
+            SELECT
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE expiryDate < CURDATE()
+            ORDER BY expiryDate ASC
+        `);
 
-        if (err) {
-            console.error(err);
-            return res.send("Database Error");
-        }
+        const [expiringSoonIngredients] = await db.query(`
+            SELECT
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE expiryDate >= CURDATE()
+              AND expiryDate <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            ORDER BY expiryDate ASC
+        `);
 
-        const today = new Date();
-        const sevenDaysLater = new Date();
-        sevenDaysLater.setDate(today.getDate() + 7);
+        res.render('dashboard', {
+            user: req.session.user || null,
 
-        const lowStockIngredients = results.filter(ingredient =>
-            ingredient.quantity <= ingredient.minimumStock
-        );
+            totalIngredients:
+                totalResults[0].totalIngredients,
 
-        const expiredIngredients = results.filter(ingredient =>
-            new Date(ingredient.expiryDate) < today
-        );
+            lowStockCount:
+                lowStockIngredients.length,
 
-        const expiringSoonIngredients = results.filter(ingredient => {
+            expiredCount:
+                expiredIngredients.length,
 
-            const expiryDate = new Date(ingredient.expiryDate);
-
-            return expiryDate >= today && expiryDate <= sevenDaysLater;
-
-        });
-
-        res.render("dashboard", {
-
-            totalIngredients: results.length,
-
-            lowStockCount: lowStockIngredients.length,
-
-            expiredCount: expiredIngredients.length,
-
-            expiringSoonCount: expiringSoonIngredients.length,
+            expiringSoonCount:
+                expiringSoonIngredients.length,
 
             lowStockIngredients,
-
             expiredIngredients,
-
             expiringSoonIngredients
-
         });
 
-    });
+    } catch (error) {
+        console.error('Dashboard error:', error);
 
+        res.status(500).send(`
+            <div style="font-family: Arial; padding: 40px;">
+                <h1>Dashboard database error</h1>
+                <p>${error.message}</p>
+                <a href="/">Return home</a>
+            </div>
+        `);
+    }
 });
-
 
 // Search & Filter routes (Tara)
 app.get('/search', (req, res) => {
