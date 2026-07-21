@@ -70,8 +70,8 @@ app.get('/register', (req, res) => {
 
 // ValidateRegistration (Jun Yuan)
 const validateRegistration = (req, res, next) => {
-const { username, email, password, address, contact } = req.body;
-if (!username || !email || !password || !address || !contact) {
+const { fullname, email, password } = req.body;
+if (!fullname || !email || !password ) {
 return res.send('All fields are required.');
 }
 if (password.length < 6) {
@@ -85,10 +85,10 @@ next();
 
 // Register route with validateRegistration middleware integrated (Jun Yuan)
 app.post('/register', validateRegistration, (req, res) => {
-    const { username, email, password, address, contact, role } = req.body;
+    const { fullname, email, password, role } = req.body;
 
-    const sql = 'INSERT INTO users (username, email, password, address, contact, role) VALUES (?, ?, SHA1(?), ?, ?, ?)';
-    db.query(sql, [username, email, password, address, contact, role], (err, result) => {
+    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    db.query(sql, [fullname, email, password, role], (err, result) => {
         if (err) {
             throw err;
         }
