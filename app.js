@@ -250,6 +250,333 @@ app.get('/expiring', (req, res) => {
     res.render('expiring', { items: results });
 });
 
+// Helper functions for role-based access control (Tong Sun)
+const isManager = (role) => role === 'manager';
+const isChef = (role) => role === 'chef';
+
+// Middleware to check if a user is logged in before viewing protected pages (Tong Sun)
+const checkAuthenticated = (req, res, next) => {
+    if (req.session.user) {
+        return next();
+    }
+    req.flash('error', 'Please log in to access the requested page.');
+    res.redirect('/login');
+};
+
+// Middleware to restrict inventory management to Managers (Tong Sun)
+const checkManager = (req, res, next) => {
+    if (isManager(req.session.user?.role)) {
+        return next();
+    }
+    req.flash('error', 'Access denied');
+    res.redirect('/manageInventory');
+};
+
+// Middleware to restrict viewing and updating of the inventory to Chefs (Tong Sun)
+const checkChef = (req, res, next) => {
+    if (isChef(req.session.user?.role)) {
+        return next();
+    }
+    req.flash('error', 'Access denied');
+    res.redirect('/updateInventory');
+};
+
+// Route: home page for the kitchen inventory system (Tong Sun)
+app.get('/', (req, res) => {
+    res.render('index', { user: req.session.user, isManager: isManager(req.session.user?.role) });
+});
+
+// Route: manager inventory dashboard and ingredient list (Tong Sun)
+app.get('/inventory', checkAuthenticated, checkManager, (req, res) => {
+    const search = (req.query.search || '').trim();
+    const category = (req.query.category || '').trim();
+
+    let sql = 'SELECT * FROM products WHERE 1=1';
+    const params = [];
+
+    if (search) {
+        sql += ' AND (productName LIKE ? OR supplier LIKE ? OR category LIKE ?)';
+        const searchTerm = `%${search}%`;
+        params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    if (category) {
+        sql += ' AND category = ?';
+        params.push(category);
+    }
+
+    sql += ' ORDER BY expiryDate IS NULL, expiryDate ASC, quantity ASC';
+
+    connection.query(sql, params, (error, results) => {
+        if (error) throw error;
+
+        const lowStockCount = results.filter((item) => item.quantity <= 10).length;
+        const today = new Date();
+        const expiringSoonCount = results.filter((item) => {
+            if (!item.expiryDate) return false;
+            const expiryDate = new Date(item.expiryDate);
+            const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+            return diffDays <= 7 && diffDays >= 0;
+        }).length;
+
+        const mostUsedIngredient = results
+            .slice()
+            .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))[0];
+
+        res.render('inventory', {
+            products: results,
+            user: req.session.user,
+            search,
+            category,
+            messages: req.flash('error'),
+            successMessages: req.flash('success'),
+            stats: {
+                totalIngredients: results.length,
+                lowStockCount,
+                expiringSoonCount,
+                mostUsedIngredient: mostUsedIngredient ? mostUsedIngredient.productName : 'No usage yet'
+            }
+        });
+    });
+});
+
+// Route: authenticate users and route them based on their role (Tong Sun)
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        req.flash('error', 'All fields are required.');
+        return res.redirect('/login');
+    }
+
+    const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
+    connection.query(sql, [email, password], (err, results) => {
+        if (err) {
+            throw err;
+        }
+
+        if (results.length > 0) {
+            req.session.user = results[0];
+            req.flash('success', 'Login successful!');
+            if (isManager(req.session.user.role)) {
+                res.redirect('/manageInventory');
+            } else {
+                res.redirect('/updateInventory');
+            }
+        } else {
+            req.flash('error', 'Invalid email or password.');
+            res.redirect('/login');
+        }
+    });
+});
+
+// Route: chef view for available ingredients and usage recording ()
+app.get('/updateInventory', checkAuthenticated, checkChef, (req, res) => {
+    const search = (req.query.search || '').trim();
+    const category = (req.query.category || '').trim();
+
+    let sql = 'SELECT * FROM products WHERE 1=1';
+    const params = [];
+
+    if (search) {
+        sql += ' AND (productName LIKE ? OR supplier LIKE ? OR category LIKE ?)';
+        const searchTerm = `%${search}%`;
+        params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    if (category) {
+        sql += ' AND category = ?';
+        params.push(category);
+    }
+
+    sql += ' ORDER BY quantity ASC, expiryDate ASC';
+
+    connection.query(sql, params, (error, results) => {
+        if (error) throw error;
+        res.render('updateInventory', {
+            user: req.session.user,
+            products: results,
+            search,
+            category,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
+        });
+    });
+});
+
+// Route: record ingredient usage after kitchen preparation ()
+app.post('/record-usage/:id', checkAuthenticated, checkChef, (req, res) => {
+    const productId = parseInt(req.params.id, 10);
+    const usageAmount = parseInt(req.body.usageAmount, 10) || 1;
+
+    connection.query('SELECT * FROM products WHERE productId = ?', [productId], (error, results) => {
+        if (error) throw error;
+
+        if (results.length > 0) {
+            const ingredient = results[0];
+            const newQuantity = Math.max(0, (ingredient.quantity || 0) - usageAmount);
+            const newUsageCount = (ingredient.usageCount || 0) + usageAmount;
+
+            connection.query(
+                'UPDATE products SET quantity = ?, usageCount = ? WHERE productId = ?',
+                [newQuantity, newUsageCount, productId],
+                (updateErr) => {
+                    if (updateErr) throw updateErr;
+                    req.flash('success', 'Ingredient usage was recorded successfully.');
+                    res.redirect('/updateInventory');
+                }
+            );
+        } else {
+            res.status(404).send('Ingredient not found');
+        }
+    });
+});
+
+// Route: chefs submit restocking requests when ingredients are running low ()
+app.post('/restocking-request/:id', checkAuthenticated, checkChef, (req, res) => {
+    const ingredientId = parseInt(req.params.id, 10);
+    const requestedQty = parseInt(req.body.requestedQty, 10) || 1;
+    const notes = req.body.notes || '';
+
+    if (!ingredientId || requestedQty <= 0) {
+        req.flash('error', 'Please enter a valid restock quantity.');
+        return res.redirect('/updateInventory');
+    }
+
+    connection.query('SELECT * FROM products WHERE productId = ?', [ingredientId], (error, results) => {
+        if (error) throw error;
+
+        if (results.length > 0) {
+            const ingredient = results[0];
+            const sql = 'INSERT INTO restock_requests (ingredientId, ingredientName, requestedQty, requestedBy, notes, status) VALUES (?, ?, ?, ?, ?, ?)';
+            connection.query(sql, [ingredientId, ingredient.productName, requestedQty, req.session.user.username, notes, 'Pending'], (insertErr) => {
+                if (insertErr) throw insertErr;
+                req.flash('success', 'Restocking request submitted successfully.');
+                res.redirect('/updateInventory');
+            });
+        } else {
+            res.status(404).send('Ingredient not found');
+        }
+    });
+});
+
+// Route: end the current session and return the user to the home page (Tong Sun)
+app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+
+// Route: Show full details for one ingredient (Tong Sun)
+app.get('/product/:id', checkAuthenticated, (req, res) => {
+    const productId = req.params.id;
+
+    connection.query('SELECT * FROM products WHERE productId = ?', [productId], (error, results) => {
+        if (error) throw error;
+
+        if (results.length > 0) {
+            res.render('product', { product: results[0], user: req.session.user });
+        } else {
+            res.status(404).send('Ingredient not found');
+        }
+    });
+});
+
+// Route: Manager page to add a new ingredient record (Tong Sun)
+app.get('/addIngredient', checkAuthenticated, checkManager, (req, res) => {
+    res.render('addIngredient', { user: req.session.user, errorMessages: req.flash('error'), formData: {} });
+});
+
+// Route: save a new ingredient record into the database (Tong Sun)
+app.post('/addIngredient', checkAuthenticated, checkManager, upload.single('image'), (req, res) => {
+    const { name, quantity, unit, supplier, category, expiryDate, price } = req.body;
+    const parsedQuantity = parseInt(quantity, 10) || 0;
+    const parsedPrice = parseFloat(price);
+
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        return res.render('addIngredient', {
+            user: req.session.user,
+            errorMessages: ['Price must be a positive number.'],
+            formData: { name, quantity, unit, supplier, category, expiryDate, price }
+        });
+    }
+
+    let image = 'default-ingredient.png';
+
+    if (req.file) {
+        image = req.file.filename;
+    }
+
+    const sql = 'INSERT INTO products (productName, quantity, unit, supplier, category, expiryDate, price, image, usageCount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)';
+    connection.query(sql, [name, parsedQuantity, unit || 'kg', supplier || 'N/A', category || 'General', expiryDate || null, parsedPrice, image], (error) => {
+        if (error) {
+            console.error('Error adding ingredient:', error);
+            return res.render('addIngredient', {
+                user: req.session.user,
+                errorMessages: [`Error adding ingredient: ${error.sqlMessage || 'Database error.'}`],
+                formData: { name, quantity, unit, supplier, category, expiryDate, price }
+            });
+        }
+        res.redirect('/manageInventory');
+    });
+});
+
+// Route: Manager page to edit an existing ingredient record (Tong Sun)
+app.get('/updateIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const productId = req.params.id;
+    const sql = 'SELECT * FROM products WHERE productId = ?';
+
+    connection.query(sql, [productId], (error, results) => {
+        if (error) throw error;
+
+        if (results.length > 0) {
+            res.render('updateIngredient', { product: results[0], user: req.session.user, errorMessages: req.flash('error') });
+        } else {
+            res.status(404).send('Ingredient not found');
+        }
+    });
+});
+
+// Route: save changes made to an existing ingredient record (Tong Sun)
+app.post('/updateIngredient/:id', checkAuthenticated, checkManager, upload.single('image'), (req, res) => {
+    const productId = req.params.id;
+    const { name, quantity, unit, supplier, category, expiryDate, price } = req.body;
+    const parsedQuantity = parseInt(quantity, 10) || 0;
+    const parsedPrice = parseFloat(price);
+
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        req.flash('error', 'Price must be a positive number.');
+        return res.redirect(`/updateIngredient/${productId}`);
+    }
+
+    let image = req.body.currentImage || 'default-ingredient.png';
+
+    if (req.file) {
+        image = req.file.filename;
+    }
+
+    const sql = 'UPDATE products SET productName = ?, quantity = ?, unit = ?, supplier = ?, category = ?, expiryDate = ?, price = ?, image = ? WHERE productId = ?';
+    connection.query(sql, [name, parsedQuantity, unit || 'kg', supplier || 'N/A', category || 'General', expiryDate || null, parsedPrice, image, productId], (error) => {
+        if (error) {
+            console.error('Error updating ingredient:', error);
+            res.status(500).send('Error updating ingredient');
+        } else {
+            res.redirect('/manageInventory');
+        }
+    });
+});
+
+// Route: remove an ingredient record from the inventory (Tong Sun)
+app.get('/deleteProduct/:id', checkAuthenticated, checkManager, (req, res) => {
+    const productId = req.params.id;
+
+    connection.query('DELETE FROM products WHERE productId = ?', [productId], (error) => {
+        if (error) {
+            console.error('Error deleting ingredient:', error);
+            res.status(500).send('Error deleting ingredient');
+        } else {
+            res.redirect('/manageInventory');
+        }
+    });
+});
 
 // Starting the server
 app.listen(3000, () => {
