@@ -2,8 +2,20 @@
     <a class="navbar-brand-plain" href="/">Pantry App</a>
     <div class="navbar-links">
         <a class="nav-tab" data-path="/" href="/">Home</a>
-        <a class="nav-tab" data-path="/register" href="/register">Register</a>
-        <a class="nav-tab" data-path="/login" href="/login">Login</a>
+        <% if (typeof user !== 'undefined' && user) { %>
+            <% if (user.role === 'chef') { %>
+                <a class="nav-tab" data-path="/dashboard" href="/dashboard">Dashboard</a>
+            <% } else { %>
+                <a class="nav-tab" data-path="/admin" href="/admin">Admin dashboard</a>
+            <% } %>
+            <% if (user.role === 'superadmin') { %>
+                <a class="nav-tab" data-path="/register-manager" href="/register-manager">Register manager</a>
+            <% } %>
+            <a class="nav-tab" href="/logout">Logout</a>
+        <% } else { %>
+            <a class="nav-tab" data-path="/register" href="/register">Register</a>
+            <a class="nav-tab" data-path="/login" href="/login">Login</a>
+        <% } %>
     </div>
 </nav>
 <script>

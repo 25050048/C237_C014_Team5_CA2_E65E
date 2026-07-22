@@ -49,9 +49,9 @@ res.redirect('/login');
 }
 };
 
-//  Check if user is admin. (Jun Yuan)
-const checkAdmin = (req, res, next) => {
-if (req.session.user.role === 'admin') {
+//  Check if user is manager or superadmin. (Jun Yuan)
+const checkManager = (req, res, next) => {
+if (req.session.user.role === 'manager' || req.session.user.role === 'superadmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -59,13 +59,26 @@ res.redirect('/dashboard');
 }
 };
 
+// Check if user is superadmin only - gates the register-admin page (Jun Yuan)
+const checkSuperAdmin = (req, res, next) => {
+if (req.session.user && req.session.user.role === 'superadmin') {
+return next();
+} else {
+req.flash('error', 'Access denied');
+res.redirect('/dashboard');
+}
+};
+
+// Alias so the existing /dashboard route (which references requireLogin) doesn't crash (Jun Yuan)
+const requireLogin = checkAuthenticated;
+
 // Routes for login (Jun Yuan)
 app.get('/', (req, res) => {
     res.render('index', { user: req.session.user, messages: req.flash('success')});
 });
 
 app.get('/register', (req, res) => {
-    res.render('register', { messages: req.flash('error'), formData: req.flash('formData')[0] });
+    res.render('register', { user: req.session.user, messages: req.flash('error'), formData: req.flash('formData')[0] });
 });
 
 // ValidateRegistration (Jun Yuan)
@@ -84,8 +97,10 @@ next();
 };
 
 // Register route with validateRegistration middleware integrated (Jun Yuan)
+// Role is never read from the form - public registration always creates a 'chef' account.
 app.post('/register', validateRegistration, (req, res) => {
-    const { fullname, email, password, role } = req.body;
+    const { fullname, email, password } = req.body;
+    const role = 'chef';
 
     const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
     db.query(sql, [fullname, email, password, role], (err, result) => {
@@ -98,9 +113,30 @@ app.post('/register', validateRegistration, (req, res) => {
     });
 });
 
+// Register-manager routes: only a logged-in superadmin can reach these (Jun Yuan)
+// View file is still named registerAdmin.ejs, only the route/role/wording changed to manager.
+app.get('/register-manager', checkAuthenticated, checkSuperAdmin, (req, res) => {
+    res.render('registerAdmin', { user: req.session.user, messages: req.flash('error'), formData: req.flash('formData')[0] });
+});
+
+app.post('/register-manager', checkAuthenticated, checkSuperAdmin, validateRegistration, (req, res) => {
+    const { fullname, email, password } = req.body;
+    const role = 'manager';
+
+    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    db.query(sql, [fullname, email, password, role], (err, result) => {
+        if (err) {
+            throw err;
+        }
+        req.flash('success', 'Manager account created.');
+        res.redirect('/admin');
+    });
+});
+
 // Login route (Jun Yuan)
 app.get('/login', (req, res) => {
 res.render('login', {
+user: req.session.user,
 // Conditional rendering of flash messages for success and error messages
 messages: req.flash('success'),
 errors: req.flash('error')
@@ -124,7 +160,12 @@ if (results.length > 0) {
 // Successful login
 req.session.user = results[0]; // store user in session
 req.flash('success', 'Login successful!');
+// Route to the dashboard that matches the account's role
+if (results[0].role === 'manager' || results[0].role === 'superadmin') {
+res.redirect('/admin');
+} else {
 res.redirect('/dashboard');
+}
 } else {
 // Invalid credentials 
 req.flash('error', 'Invalid email or password.');
@@ -134,7 +175,7 @@ res.redirect('/login');
 });
 
 // Admin route (Jun Yuan)
-app.get('/admin', checkAuthenticated, checkAdmin, (req, res) => {
+app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
