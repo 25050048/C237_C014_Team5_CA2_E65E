@@ -210,7 +210,7 @@ app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
-// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
+// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only(Tassie))
 app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
     try {
         const search = req.query.search || '';
@@ -245,6 +245,12 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             ORDER BY totalUsed DESC
             LIMIT 1
         `);
+        const [categoryRows] = await db.promise().query(`
+            SELECT DISTINCT category
+            FROM ingredients
+            WHERE category IS NOT NULL AND category <> ''
+            ORDER BY category
+        `);
 
         res.render('manageInventory', {
             user: req.session.user,
@@ -257,6 +263,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             },
             search,
             category,
+            categories: categoryRows.map(r => r.category),
             ingredients: products,
             messages: req.flash('error'),
             successMessages: req.flash('success')
@@ -671,7 +678,7 @@ db.query(
 // Chef homepage - lands here after login, mirrors the admin.ejs welcome page (Jun Yuan)
 // The full kitchen operations view (tasks, alerts, expiry requests) lives at /dashboard/overview below.
 app.get('/dashboard', requireLogin, checkChef, (req, res) => {
-    res.render('chefHome', { user: req.session.user });
+    res.render('chef', { user: req.session.user });
 });
 
 // =====================================================
