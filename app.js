@@ -188,8 +188,10 @@ if (results.length > 0) {
 const staffMember = results[0];
 req.session.user = staffMember; // store user in session
 req.flash('success', 'Login successful!');
-// Route to the dashboard that matches the account's role
-if (staffMember.role === 'Manager' || staffMember.role === 'SuperAdmin') {
+// Route to the page that matches the account's role
+if (staffMember.role === 'SuperAdmin') {
+res.redirect('/');
+} else if (staffMember.role === 'Manager') {
 res.redirect('/admin');
 } else {
 res.redirect('/dashboard');
