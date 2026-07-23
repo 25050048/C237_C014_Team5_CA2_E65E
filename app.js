@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const app = express();
 
-// Profile picture uploads - stored in public/images alongside the existing ingredient images (Jun Yuan)
+// Multer for PFP (Jun Yuan)
 const profileUpload = multer({
     storage: multer.diskStorage({
         destination: path.join(__dirname, 'public', 'images'),
@@ -75,32 +75,31 @@ if (req.session.user.role === 'Manager' || req.session.user.role === 'SuperAdmin
 return next();
 } else {
 req.flash('error', 'Access denied');
-res.redirect('/dashboard');
+res.redirect('/');
 }
 };
 
-// Check if user is superadmin only - gates the register-admin page (Jun Yuan)
-// staff.role in the DB is ENUM('Chef','Manager','SuperAdmin').
+// Check if user is superadmin (Jun Yuan)
 const checkSuperAdmin = (req, res, next) => {
 if (req.session.user && req.session.user.role === 'SuperAdmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
-res.redirect('/dashboard');
+res.redirect('/');
 }
 };
 
-// Check if user is a chef - gates the chef dashboard away from managers/superadmin (Jun Yuan)
+// Check if user is a chef  (Jun Yuan)
 const checkChef = (req, res, next) => {
 if (req.session.user && req.session.user.role === 'Chef') {
 return next();
 } else {
 req.flash('error', 'The dashboard is for chef accounts. Use the admin board instead.');
-res.redirect('/admin');
+res.redirect('/');
 }
 };
 
-// Alias so the existing /dashboard route (which references requireLogin) doesn't crash (Jun Yuan)
+// (Jun Yuan)
 const requireLogin = checkAuthenticated;
 
 // Routes for login (Jun Yuan)
@@ -108,6 +107,7 @@ app.get('/', (req, res) => {
     res.render('index', { user: req.session.user, messages: req.flash('success')});
 });
 
+// Routes for registration (Jun Yuan)
 app.get('/register', (req, res) => {
     res.render('register', { user: req.session.user, messages: req.flash('error'), formData: req.flash('formData')[0] });
 });
@@ -128,8 +128,6 @@ next();
 };
 
 // Register route with validateRegistration middleware integrated (Jun Yuan)
-// Role is never read from the form - public registration always creates a 'Chef' account.
-// NOTE: the DB table is `staff` (not `users`), and its name column is `fullName`.
 app.post('/register', validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
     const role = 'Chef';
@@ -151,12 +149,12 @@ app.post('/register', validateRegistration, (req, res) => {
     });
 });
 
-// Register-manager routes: only a logged-in superadmin can reach these (Jun Yuan)
-// View file is still named registerAdmin.ejs, only the route/role/wording changed to manager.
+// Register-manager routes (Jun Yuan)
 app.get('/register-manager', checkAuthenticated, checkSuperAdmin, (req, res) => {
     res.render('registerAdmin', { user: req.session.user, messages: req.flash('error'), formData: req.flash('formData')[0] });
 });
 
+// Register-manager posting (Jun Yuan)
 app.post('/register-manager', checkAuthenticated, checkSuperAdmin, validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
     const role = 'Manager';
@@ -187,10 +185,7 @@ errors: req.flash('error')
 });
 });
 
-// User login route (Jun Yuan)
-// NOTE: the DB table is `staff` (not `users`).
-// Accounts lock after MAX_LOGIN_ATTEMPTS consecutive failed password attempts (staff.failedAttempts / staff.isLocked).
-// A SuperAdmin can unlock an account again from the /user-management page.
+// User login route penalty (Jun Yuan)
 const MAX_LOGIN_ATTEMPTS = 5;
 
 app.post('/login', (req, res) => {
@@ -201,9 +196,7 @@ req.flash('error', 'All fields are required.');
 return res.redirect('/login');
 }
 
-// Look up the account by email first (separately from the password) so we can
-// check its lock status and track failed attempts before deciding if the
-// password matches.
+// Look up the account by email first (Jun Yuan)
 const sql = 'SELECT * FROM staff WHERE email = ?';
 db.query(sql, [email], (err, results) => {
 if (err) {
@@ -233,7 +226,7 @@ return res.redirect('/login');
 }
 
 if (matchResults.length > 0) {
-// Correct password - reset the failed-attempt counter and log the user in.
+// Correct password, reset failed attempts (Jun Yuan)
 db.query('UPDATE staff SET failedAttempts = 0 WHERE staffId = ?', [staffMember.staffId], (err3) => {
 if (err3) {
 console.error('Failed to reset login attempts:', err3);
@@ -241,12 +234,12 @@ console.error('Failed to reset login attempts:', err3);
 });
 
 staffMember.failedAttempts = 0;
-req.session.user = staffMember; // store user in session
-// SuperAdmin lands on the homepage itself, so skip the "Login successful!" banner for that role.
+req.session.user = staffMember; 
+
 if (staffMember.role !== 'SuperAdmin') {
 req.flash('success', 'Login successful!');
 }
-// Route to the page that matches the account's role
+// Route to the page that matches the account's role (Jun Yuan)
 if (staffMember.role === 'SuperAdmin') {
 res.redirect('/');
 } else if (staffMember.role === 'Manager') {
@@ -255,7 +248,7 @@ res.redirect('/admin');
 res.redirect('/dashboard');
 }
 } else {
-// Wrong password - increment the failed-attempt counter, locking the account if it hits the limit.
+// Wrong password, increase counter (Jun Yuan)
 const newAttempts = staffMember.failedAttempts + 1;
 
 if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
@@ -281,12 +274,11 @@ res.redirect('/login');
 });
 
 // Admin route (Jun Yuan)
-// Manager and SuperAdmin both land on the same admin homepage.
 app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
-// User Management: view every staff account and reactivate locked ones - SuperAdmin only (Jun Yuan)
+// User Management route(Jun Yuan)
 app.get('/user-management', checkAuthenticated, checkSuperAdmin, (req, res) => {
     const sql = 'SELECT staffId, fullName, email, role, failedAttempts, isLocked FROM staff ORDER BY fullName ASC';
     db.query(sql, (err, staffList) => {
@@ -465,9 +457,7 @@ req.session.destroy();
 res.redirect('/');
 });
 
-// Profile page - every role can view/edit their own profile (Jun Yuan)
-// Re-fetches the staff row from the DB (rather than trusting the session copy)
-// so the page always shows the latest picture/phone/address/etc.
+// Profile page  (Jun Yuan)
 app.get('/profile', checkAuthenticated, (req, res) => {
     const sql = 'SELECT staffId, fullName, email, role, phone, address, profilePicture FROM staff WHERE staffId = ?';
     db.query(sql, [req.session.user.staffId], (err, results) => {
@@ -489,7 +479,7 @@ app.get('/profile', checkAuthenticated, (req, res) => {
     });
 });
 
-// Update the optional contact details (phone/address) (Jun Yuan)
+// Update the optional contact details (Jun Yuan)
 app.post('/profile/contact', checkAuthenticated, (req, res) => {
     const phone = (req.body.phone || '').trim() || null;
     const address = (req.body.address || '').trim() || null;
@@ -535,8 +525,7 @@ app.post('/profile/picture', checkAuthenticated, (req, res) => {
     });
 });
 
-// Change password - requires the current password plus the new password entered
-// twice, so a mistyped new password can't silently lock the user out (Jun Yuan)
+// Change password  (Jun Yuan)
 app.post('/profile/password', checkAuthenticated, (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
@@ -896,7 +885,7 @@ db.query(
 );
 
 
-// Chef homepage - lands here after login, mirrors the admin.ejs welcome page (Jun Yuan)
+// Chef homepage - lands here after login, mirrors the admin.ejs welcome page (TASSIE)
 // The full kitchen operations view (tasks, alerts, expiry requests) lives at /dashboard/overview below.
 app.get('/dashboard', requireLogin, checkChef, (req, res) => {
     res.render('chef', { user: req.session.user });
