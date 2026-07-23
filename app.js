@@ -222,7 +222,10 @@ console.error('Failed to reset login attempts:', err3);
 
 staffMember.failedAttempts = 0;
 req.session.user = staffMember; // store user in session
+// SuperAdmin lands on the homepage itself, so skip the "Login successful!" banner for that role.
+if (staffMember.role !== 'SuperAdmin') {
 req.flash('success', 'Login successful!');
+}
 // Route to the page that matches the account's role
 if (staffMember.role === 'SuperAdmin') {
 res.redirect('/');
