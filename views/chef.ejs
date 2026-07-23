@@ -16,7 +16,6 @@
                 <p>You're signed in as <%= user.role %>. Check today's kitchen tasks and what's expiring soon from here.</p>
                 <div class="hero-actions">
                     <a href="/dashboard/overview" class="btn btn-dark">View inventory board</a>
-                    <a href="/logout" class="btn btn-outline-dark">Logout</a>
                 </div>
             </div>
             <div class="hero-collage">
@@ -31,11 +30,6 @@
                 <i class="bi bi-clipboard-check"></i>
                 <h3>Inventory Board</h3>
                 <p>Kitchen tasks, expiry alerts, and stock requests in one place.</p>
-            </a>
-            <a href="/logout" class="feature-card" style="text-decoration: none; color: inherit; display: block;">
-                <i class="bi bi-box-arrow-right"></i>
-                <h3>Logout</h3>
-                <p>Sign out of your <%= user.role %> account.</p>
             </a>
         </section>
     </div>

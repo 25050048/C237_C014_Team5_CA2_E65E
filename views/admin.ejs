@@ -16,7 +16,6 @@
                 <p>You're signed in as <%= user.role %>. Keep the kitchen's stock on track from here.</p>
                 <div class="hero-actions">
                     <a href="/manage-inventory" class="btn btn-dark">View inventory board</a>
-                    <a href="/logout" class="btn btn-outline-dark">Logout</a>
                 </div>
             </div>
             <div class="hero-collage">
@@ -39,11 +38,6 @@
                     <p>Create a new manager account for the team.</p>
                 </a>
             <% } %>
-            <a href="/logout" class="feature-card" style="text-decoration: none; color: inherit; display: block;">
-                <i class="bi bi-box-arrow-right"></i>
-                <h3>Logout</h3>
-                <p>Sign out of your <%= user.role %> account.</p>
-            </a>
         </section>
     </div>
 </body>

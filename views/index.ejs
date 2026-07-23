@@ -39,7 +39,6 @@
                     <p class="hero-greeting">Welcome back, <%= user.fullName %></p>
                     <div class="hero-actions">
                         <a href="<%= user.role === 'Chef' ? '/dashboard' : '/admin' %>" class="btn btn-dark">Go to dashboard</a>
-                        <a href="/logout" class="btn btn-outline-dark">Logout</a>
                     </div>
                 <% } else { %>
                     <div class="hero-actions">
