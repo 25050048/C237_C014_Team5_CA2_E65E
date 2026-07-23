@@ -4,7 +4,7 @@
         <a class="nav-tab" data-path="/" href="/">Home</a>
         <% if (typeof user !== 'undefined' && user) { %>
             <% if (user.role === 'Chef') { %>
-                <a class="nav-tab" data-path="/dashboard" href="/dashboard">Dashboard</a>
+                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">Inventory Board</a>
             <% } else { %>
                 <% if (user.role === 'SuperAdmin') { %>
                     <a class="nav-tab" data-path="/register-manager" href="/register-manager">Register Manager</a>

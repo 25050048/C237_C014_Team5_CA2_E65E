@@ -2,32 +2,7 @@ const express = require('express');
 const mysql = require('mysql2');
 const session = require('express-session');
 const flash = require('connect-flash');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const app = express();
-
-const imagesPath = path.join(__dirname, 'public', 'images');
-if (!fs.existsSync(imagesPath)) {
-    fs.mkdirSync(imagesPath, { recursive: true });
-}
-
-const upload = multer({
-    storage: multer.diskStorage({
-        destination: imagesPath,
-        filename: (req, file, cb) => {
-            const ext = path.extname(file.originalname);
-            const safeName = path.basename(file.originalname, ext).replace(/\s+/g, '-').toLowerCase();
-            cb(null, `${safeName}-${Date.now()}${ext}`);
-        }
-    }),
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|gif/;
-        const isAllowedExt = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const isAllowedMime = allowedTypes.test(file.mimetype);
-        cb(null, isAllowedExt && isAllowedMime);
-    }
-});
 
 // Database connection
 const db = mysql.createConnection({
@@ -235,36 +210,6 @@ app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
-app.get('/addIngredient', checkAuthenticated, checkManager, (req, res) => {
-    res.render('addIngredient', {
-        user: req.session.user,
-        errorMessages: req.flash('error'),
-        formData: req.flash('formData')[0] || {}
-    });
-});
-
-app.post('/addProduct', checkAuthenticated, checkManager, upload.single('image'), (req, res) => {
-    const { name, quantity, unit, supplier, category, expiryDate, storageLocation } = req.body;
-    if (!name || !quantity) {
-        req.flash('error', 'Name and quantity are required.');
-        req.flash('formData', req.body);
-        return res.redirect('/addIngredient');
-    }
-
-    const filename = req.file ? req.file.filename : '';
-    const sql = `INSERT INTO ingredients (ingredientName, quantity, unit, supplier, category, expiryDate, image, storageLocation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-    req.db.query(sql, [name, quantity, unit || '', supplier || '', category || '', expiryDate || null, filename, storageLocation || ''], (err) => {
-        if (err) {
-            console.error('Add ingredient error:', err);
-            req.flash('error', 'Unable to add ingredient.');
-            req.flash('formData', req.body);
-            return res.redirect('/addIngredient');
-        }
-        req.flash('success', 'Ingredient added successfully.');
-        res.redirect('/manage-inventory');
-    });
-});
-
 // Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
 app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
     try {
@@ -300,12 +245,6 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             ORDER BY totalUsed DESC
             LIMIT 1
         `);
-        const [categoryRows] = await db.promise().query(`
-            SELECT DISTINCT category
-            FROM ingredients
-            WHERE category IS NOT NULL AND category <> ''
-            ORDER BY category
-        `);
 
         res.render('manageInventory', {
             user: req.session.user,
@@ -318,7 +257,6 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             },
             search,
             category,
-            categories: categoryRows.map(r => r.category),
             ingredients: products,
             messages: req.flash('error'),
             successMessages: req.flash('success')
@@ -328,65 +266,6 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
         req.flash('error', 'Could not load the inventory manager. Please try again.');
         res.redirect('/admin');
     }
-});
-
-app.get('/updateIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
-    const ingredientId = req.params.id;
-    req.db.query('SELECT * FROM ingredients WHERE ingredientId = ?', [ingredientId], (err, results) => {
-        if (err) {
-            console.error('Update ingredient load error:', err);
-            req.flash('error', 'Could not load ingredient details.');
-            return res.redirect('/manage-inventory');
-        }
-        if (results.length === 0) {
-            req.flash('error', 'Ingredient not found.');
-            return res.redirect('/manage-inventory');
-        }
-        res.render('updateIngredient', {
-            user: req.session.user,
-            ingredient: results[0],
-            errorMessages: req.flash('error')
-        });
-    });
-});
-
-app.post('/updateIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
-    const ingredientId = req.params.id;
-    const {
-        ingredientName,
-        quantity,
-        unit,
-        supplier,
-        category,
-        expiryDate,
-        storageLocation,
-        currentImage
-    } = req.body;
-    const image = currentImage || null;
-
-    const sql = `UPDATE ingredients SET ingredientName = ?, quantity = ?, unit = ?, supplier = ?, category = ?, expiryDate = ?, storageLocation = ?, image = ? WHERE ingredientId = ?`;
-    req.db.query(sql, [ingredientName, quantity, unit, supplier, category, expiryDate || null, storageLocation, image, ingredientId], (err, result) => {
-        if (err) {
-            console.error('Update ingredient error:', err);
-            req.flash('error', 'Unable to update ingredient.');
-            return res.redirect(`/updateIngredient/${ingredientId}`);
-        }
-        req.flash('success', 'Ingredient updated successfully.');
-        res.redirect('/manage-inventory');
-    });
-});
-
-app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
-    const ingredientId = req.params.id;
-    req.db.query('DELETE FROM ingredients WHERE ingredientId = ?', [ingredientId], (err, result) => {
-        if (err) {
-            console.error('Delete ingredient error:', err);
-            req.flash('error', 'Unable to delete ingredient.');
-            return res.redirect('/manage-inventory');
-        }
-        req.flash('success', 'Ingredient deleted successfully.');
-        res.redirect('/manage-inventory');
-    });
 });
 
 // Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
@@ -469,375 +348,6 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
 app.get('/logout', (req, res) => {
 req.session.destroy();
 res.redirect('/');
-});
-
-// Dashboard route - chef only (Tassie) with Search/Filter dropdowns (Tara)
-app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
-    try {
-        const [totalResults] = await db.promise().query(`
-            SELECT COUNT(*) AS totalIngredients
-            FROM ingredients
-        `);
-
-        const [lowStockIngredients] = await db.promise().query(`
-            SELECT
-                ingredientId,
-                ingredientName,
-                quantity,
-                unit,
-                minimumStock,
-                expiryDate
-            FROM ingredients
-            WHERE quantity <= minimumStock
-            ORDER BY quantity ASC
-        `);
-
-        const [expiredIngredients] = await db.promise().query(`
-            SELECT
-                ingredientId,
-                ingredientName,
-                quantity,
-                unit,
-                minimumStock,
-                expiryDate
-            FROM ingredients
-            WHERE expiryDate < CURDATE()
-            ORDER BY expiryDate ASC
-        `);
-
-        const [expiringSoonIngredients] = await db.promise().query(`
-            SELECT
-                ingredientId,
-                ingredientName,
-                quantity,
-                unit,
-                minimumStock,
-                expiryDate
-            FROM ingredients
-            WHERE expiryDate >= CURDATE()
-              AND expiryDate <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-            ORDER BY expiryDate ASC
-        `);
-
-        // Added so the Search/Filter widgets embedded on the dashboard can
-        // populate their dropdowns (Tara)
-        const [categoryRows] = await db.promise().query(
-            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
-        );
-        const [storageRows] = await db.promise().query(
-            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
-        );
-
-        res.render('dashboard', {
-    user: req.session.user || null,
-    totalIngredients: totalResults[0].totalIngredients,
-    lowStockCount: lowStockIngredients.length,
-    expiredCount: expiredIngredients.length,
-    expiringSoonCount: expiringSoonIngredients.length,
-    lowStockIngredients,
-    expiredIngredients,
-    expiringSoonIngredients,
-    kitchenTasks: [],
-    stockRequests: [],
-    categories: categoryRows.map(r => r.category),
-    storageOptions: storageRows.map(r => r.storageLocation)
-});
-
-    } catch (error) {
-        console.error('Dashboard error:', error);
-        res.status(500).send(`
-            <div style="font-family: Arial; padding: 40px;">
-                <h1>Dashboard database error</h1>
-                <p>${error.message}</p>
-                <a href="/">Return home</a>
-            </div>
-        `);
-    }
-});
-
-// Search & Filter routes (Tara)
-app.get('/search', requireLogin, async (req, res) => {
-    try {
-        const search = req.query.search || '';
-        const category = req.query.category || '';
-        const storage = req.query.storage || '';
-        const expiry = req.query.expiry || '';
-        const sort = req.query.sort || '';
-
-        let sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE 1=1
-        `;
-        const params = [];
-
-        if (search) {
-            sql += ` AND ingredientName LIKE ?`;
-            params.push(`%${search}%`);
-        }
-        if (category) {
-            sql += ` AND category = ?`;
-            params.push(category);
-        }
-        if (storage) {
-            sql += ` AND storageLocation = ?`;
-            params.push(storage);
-        }
-        if (expiry === 'expired') {
-            sql += ` AND expiryDate < CURDATE()`;
-        } else if (expiry === '3days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
-        } else if (expiry === '7days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
-        }
-
-        if (sort === 'expiry_desc') {
-            sql += ` ORDER BY expiryDate DESC`;
-        } else if (sort === 'name_asc') {
-            sql += ` ORDER BY ingredientName ASC`;
-        } else if (sort === 'newest') {
-            sql += ` ORDER BY createdAt DESC`;
-        } else {
-            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
-        }
-
-        const [items] = await db.promise().query(sql, params);
-        const [categoryRows] = await db.promise().query(
-            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
-        );
-        const [storageRows] = await db.promise().query(
-            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
-        );
-
-        res.render('search', {
-            user: req.session.user,
-            items,
-            categories: categoryRows.map(r => r.category),
-            storageOptions: storageRows.map(r => r.storageLocation),
-            search,
-            selectedCategory: category,
-            selectedStorage: storage,
-            selectedExpiry: expiry,
-            selectedSort: sort
-        });
-    } catch (error) {
-        console.error('Search error:', error);
-        req.flash('error', 'Something went wrong while searching. Please try again.');
-        res.redirect('/dashboard');
-    }
-});
-
-app.get('/expiring', requireLogin, async (req, res) => {
-    try {
-        const sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-            ORDER BY expiryDate ASC
-        `;
-        const [items] = await db.promise().query(sql);
-        res.render('expiring', { user: req.session.user, items });
-    } catch (error) {
-        console.error('Expiring error:', error);
-        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
-        res.redirect('/dashboard');
-    }
-});
-
-// [GET] Display Ingredient Usage Form (Sean)
-app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
-
-    const sql = `
-        SELECT
-            ingredientId,
-            ingredientName,
-            quantity,
-            unit
-        FROM ingredients
-        ORDER BY ingredientName ASC
-    `;
-
-    req.db.query(sql, (err, ingredients) => {
-
-        if (err) {
-            console.error(err);
-            req.flash('error', 'Unable to load ingredients.');
-            return res.redirect('/dashboard');
-        }
-
-        res.render('ingredientUsage', {
-            user: req.session.user,
-            ingredients,
-            messages: req.flash('success'),
-            errors: req.flash('error')
-        });
-
-    });
-
-});
-
-
-// [POST] Record Ingredient Usage, Update Inventory & Create Restocking Request (Sean)
-app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
-
-    const ingredientId = req.body.ingredientId;
-    const quantityUsed = parseFloat(req.body.quantityUsed);
-    const remarks = req.body.remarks;
-    const staffId = req.session.user.staffId;
-
-    if (!ingredientId || isNaN(quantityUsed) || quantityUsed <= 0) {
-        req.flash('error', 'Please enter a valid quantity.');
-        return res.redirect('/ingredient-usage');
-    }
-
-    const ingredientSQL = `
-        SELECT *
-        FROM ingredients
-        WHERE ingredientId = ?
-    `;
-
-    req.db.query(ingredientSQL, [ingredientId], (err, ingredientResult) => {
-
-        if (err) {
-            console.error(err);
-            req.flash('error', 'Database error.');
-            return res.redirect('/ingredient-usage');
-        }
-
-        if (ingredientResult.length === 0) {
-            req.flash('error', 'Ingredient not found.');
-            return res.redirect('/ingredient-usage');
-        }
-
-        const ingredient = ingredientResult[0];
-
-        if (quantityUsed > ingredient.quantity) {
-            req.flash('error', 'Quantity used exceeds available stock.');
-            return res.redirect('/ingredient-usage');
-        }
-
-        const usageSQL = `
-            INSERT INTO ingredient_usage
-            (ingredientId, staffId, quantityUsed, remarks)
-            VALUES (?, ?, ?, ?)
-        `;
-
-        req.db.query(
-            usageSQL,
-            [ingredientId, staffId, quantityUsed, remarks],
-            (err) => {
-
-                if (err) {
-                    console.error(err);
-                    req.flash('error', 'Unable to record ingredient usage.');
-                    return res.redirect('/ingredient-usage');
-                }
-
-                const newQuantity = ingredient.quantity - quantityUsed;
-
-                const updateSQL = `
-                    UPDATE ingredients
-                    SET quantity = ?
-                    WHERE ingredientId = ?
-                `;
-
-                req.db.query(
-                    updateSQL,
-                    [newQuantity, ingredientId],
-                    (err) => {
-
-                        if (err) {
-                            console.error(err);
-                            req.flash('error', 'Unable to update ingredient stock.');
-                            return res.redirect('/ingredient-usage');
-                        }
-
-                        if (newQuantity <= ingredient.minimumStock) {
-
-                            const checkSQL = `
-                                SELECT *
-                                FROM restock_requests
-                                WHERE ingredientId = ?
-                                AND status = 'Pending'
-                            `;
-
-                            req.db.query(
-                                checkSQL,
-                                [ingredientId],
-                                (err, pendingResult) => {
-
-                                    if (err) {
-                                        console.error(err);
-                                        req.flash('error', 'Unable to check restock requests.');
-                                        return res.redirect('/ingredient-usage');
-                                    }
-
-                                    if (pendingResult.length === 0) {
-
-                                        const requestQty = ingredient.minimumStock * 2;
-
-                                        const requestSQL = `
-                                            INSERT INTO restock_requests
-                                            (
-                                                ingredientId,
-                                                requestedBy,
-                                                requestedQuantity,
-                                                status
-                                            )
-                                            VALUES (?, ?, ?, 'Pending')
-                                        `;
-
-                                        req.db.query(
-                                            requestSQL,
-                                            [ingredientId, staffId, requestQty],
-                                            (err) => {
-
-                                                if (err) {
-                                                    console.error(err);
-                                                    req.flash('error', 'Usage recorded but restock request could not be created.');
-                                                    return res.redirect('/ingredient-usage');
-                                                }
-
-                                                req.flash(
-                                                    'success',
-                                                    'Ingredient usage recorded. Restocking request created automatically.'
-                                                );
-
-                                                return res.redirect('/ingredient-usage');
-                                            }
-                                        );
-
-                                    } else {
-
-                                        req.flash(
-                                            'success',
-                                            'Ingredient usage recorded successfully.'
-                                        );
-
-                                        return res.redirect('/ingredient-usage');
-                                    }
-
-                                }
-                            );
-
-                        } else {
-
-                            req.flash(
-                                'success',
-                                'Ingredient usage recorded successfully.'
-                            );
-
-                            return res.redirect('/ingredient-usage');
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-    });
-
 });
 
 // Dashboard route - chef only (Tassie) with Search/Filter dropdowns (Tara)
@@ -1158,11 +668,17 @@ db.query(
 );
 
 
+// Chef homepage - lands here after login, mirrors the admin.ejs welcome page (Jun Yuan)
+// The full kitchen operations view (tasks, alerts, expiry requests) lives at /dashboard/overview below.
+app.get('/dashboard', requireLogin, checkChef, (req, res) => {
+    res.render('chefHome', { user: req.session.user });
+});
+
 // =====================================================
 // KITCHEN OPERATIONS DASHBOARD
 // =====================================================
 app.get(
-    '/dashboard',
+    '/dashboard/overview',
     checkAuthenticated,
     async (req, res) => {
         try {
@@ -1340,7 +856,7 @@ app.post(
                     'Please enter a task name and task date.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             const assignedTo =
@@ -1376,7 +892,7 @@ app.post(
                 'Kitchen task created successfully.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
 
         } catch (error) {
             console.error(
@@ -1389,7 +905,7 @@ app.post(
                 'Unable to create the kitchen task.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
         }
     }
 );
@@ -1426,7 +942,7 @@ app.post(
                     'Please complete all task fields correctly.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             const result = await runQuery(
@@ -1452,7 +968,7 @@ app.post(
                     'Kitchen task was not found.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             req.flash(
@@ -1460,7 +976,7 @@ app.post(
                 'Kitchen task updated successfully.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
 
         } catch (error) {
             console.error(
@@ -1473,7 +989,7 @@ app.post(
                 'Unable to update the kitchen task.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
         }
     }
 );
@@ -1493,7 +1009,7 @@ app.post(
                     'Invalid kitchen task.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             const result = await runQuery(
@@ -1510,7 +1026,7 @@ app.post(
                     'Kitchen task was not found.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             req.flash(
@@ -1518,7 +1034,7 @@ app.post(
                 'Kitchen task deleted successfully.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
 
         } catch (error) {
             console.error(
@@ -1531,7 +1047,7 @@ app.post(
                 'Unable to delete the kitchen task.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
         }
     }
 );
@@ -1554,7 +1070,7 @@ app.post(
                     'Invalid kitchen task.'
                 );
 
-                return res.redirect('/dashboard');
+                return res.redirect('/dashboard/overview');
             }
 
             await runQuery(
@@ -1576,7 +1092,7 @@ app.post(
                 'Kitchen task status updated.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
 
         } catch (error) {
             console.error(
@@ -1589,7 +1105,7 @@ app.post(
                 'Unable to update the kitchen task.'
             );
 
-            return res.redirect('/dashboard');
+            return res.redirect('/dashboard/overview');
         }
     }
 );
@@ -1658,7 +1174,7 @@ app.get('/expirymonitoring', checkAuthenticated, async (req, res) => {
             'Unable to load expiry monitoring.'
         );
 
-        res.redirect('/dashboard');
+        res.redirect('/dashboard/overview');
     }
 });
 //=================================================
@@ -1698,7 +1214,7 @@ app.get(
                 'Unable to load expiration stock requests.'
             );
 
-            res.redirect('/dashboard');
+            res.redirect('/dashboard/overview');
         }
     }
 );
@@ -1730,7 +1246,7 @@ app.get('/expiryrequests/new', checkAuthenticated, async (req, res) => {
 
         req.flash('error', 'Unable to load page.');
 
-        res.redirect('/dashboard');
+        res.redirect('/dashboard/overview');
 
     }
 
@@ -1882,6 +1398,292 @@ app.post(
         }
     }
 );
+
+
+// Search & Filter routes (Tara)
+app.get('/search', requireLogin, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const category = req.query.category || '';
+        const storage = req.query.storage || '';
+        const expiry = req.query.expiry || '';
+        const sort = req.query.sort || '';
+
+        let sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (search) {
+            sql += ` AND ingredientName LIKE ?`;
+            params.push(`%${search}%`);
+        }
+        if (category) {
+            sql += ` AND category = ?`;
+            params.push(category);
+        }
+        if (storage) {
+            sql += ` AND storageLocation = ?`;
+            params.push(storage);
+        }
+        if (expiry === 'expired') {
+            sql += ` AND expiryDate < CURDATE()`;
+        } else if (expiry === '3days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
+        } else if (expiry === '7days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
+        }
+
+        if (sort === 'expiry_desc') {
+            sql += ` ORDER BY expiryDate DESC`;
+        } else if (sort === 'name_asc') {
+            sql += ` ORDER BY ingredientName ASC`;
+        } else if (sort === 'newest') {
+            sql += ` ORDER BY createdAt DESC`;
+        } else {
+            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
+        }
+
+        const [items] = await db.promise().query(sql, params);
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        );
+        const [storageRows] = await db.promise().query(
+            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+        );
+
+        res.render('search', {
+            user: req.session.user,
+            items,
+            categories: categoryRows.map(r => r.category),
+            storageOptions: storageRows.map(r => r.storageLocation),
+            search,
+            selectedCategory: category,
+            selectedStorage: storage,
+            selectedExpiry: expiry,
+            selectedSort: sort
+        });
+    } catch (error) {
+        console.error('Search error:', error);
+        req.flash('error', 'Something went wrong while searching. Please try again.');
+        res.redirect('/dashboard');
+    }
+});
+
+app.get('/expiring', requireLogin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+            ORDER BY expiryDate ASC
+        `;
+        const [items] = await db.promise().query(sql);
+        res.render('expiring', { user: req.session.user, items });
+    } catch (error) {
+        console.error('Expiring error:', error);
+        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
+        res.redirect('/dashboard');
+    }
+});
+
+// [GET] Display Ingredient Usage Form (Sean)
+app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
+
+    const sql = `
+        SELECT
+            ingredientId,
+            ingredientName,
+            quantity,
+            unit
+        FROM ingredients
+        ORDER BY ingredientName ASC
+    `;
+
+    req.db.query(sql, (err, ingredients) => {
+
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Unable to load ingredients.');
+            return res.redirect('/dashboard/overview');
+        }
+
+        res.render('ingredientUsage', {
+            user: req.session.user,
+            ingredients,
+            messages: req.flash('success'),
+            errors: req.flash('error')
+        });
+
+    });
+
+});
+
+
+// [POST] Record Ingredient Usage, Update Inventory & Create Restocking Request (Sean)
+app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
+
+    const ingredientId = req.body.ingredientId;
+    const quantityUsed = parseFloat(req.body.quantityUsed);
+    const remarks = req.body.remarks;
+    const staffId = req.session.user.staffId;
+
+    if (!ingredientId || isNaN(quantityUsed) || quantityUsed <= 0) {
+        req.flash('error', 'Please enter a valid quantity.');
+        return res.redirect('/ingredient-usage');
+    }
+
+    const ingredientSQL = `
+        SELECT *
+        FROM ingredients
+        WHERE ingredientId = ?
+    `;
+
+    req.db.query(ingredientSQL, [ingredientId], (err, ingredientResult) => {
+
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Database error.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        if (ingredientResult.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const ingredient = ingredientResult[0];
+
+        if (quantityUsed > ingredient.quantity) {
+            req.flash('error', 'Quantity used exceeds available stock.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const usageSQL = `
+            INSERT INTO ingredient_usage
+            (ingredientId, staffId, quantityUsed, remarks)
+            VALUES (?, ?, ?, ?)
+        `;
+
+        req.db.query(
+            usageSQL,
+            [ingredientId, staffId, quantityUsed, remarks],
+            (err) => {
+
+                if (err) {
+                    console.error(err);
+                    req.flash('error', 'Unable to record ingredient usage.');
+                    return res.redirect('/ingredient-usage');
+                }
+
+                const newQuantity = ingredient.quantity - quantityUsed;
+
+                const updateSQL = `
+                    UPDATE ingredients
+                    SET quantity = ?
+                    WHERE ingredientId = ?
+                `;
+
+                req.db.query(
+                    updateSQL,
+                    [newQuantity, ingredientId],
+                    (err) => {
+
+                        if (err) {
+                            console.error(err);
+                            req.flash('error', 'Unable to update ingredient stock.');
+                            return res.redirect('/ingredient-usage');
+                        }
+
+                        if (newQuantity <= ingredient.minimumStock) {
+
+                            const checkSQL = `
+                                SELECT *
+                                FROM restock_requests
+                                WHERE ingredientId = ?
+                                AND status = 'Pending'
+                            `;
+
+                            req.db.query(
+                                checkSQL,
+                                [ingredientId],
+                                (err, pendingResult) => {
+
+                                    if (err) {
+                                        console.error(err);
+                                        req.flash('error', 'Unable to check restock requests.');
+                                        return res.redirect('/ingredient-usage');
+                                    }
+
+                                    if (pendingResult.length === 0) {
+
+                                        const requestQty = ingredient.minimumStock * 2;
+
+                                        const requestSQL = `
+                                            INSERT INTO restock_requests
+                                            (
+                                                ingredientId,
+                                                requestedBy,
+                                                requestedQuantity,
+                                                status
+                                            )
+                                            VALUES (?, ?, ?, 'Pending')
+                                        `;
+
+                                        req.db.query(
+                                            requestSQL,
+                                            [ingredientId, staffId, requestQty],
+                                            (err) => {
+
+                                                if (err) {
+                                                    console.error(err);
+                                                    req.flash('error', 'Usage recorded but restock request could not be created.');
+                                                    return res.redirect('/ingredient-usage');
+                                                }
+
+                                                req.flash(
+                                                    'success',
+                                                    'Ingredient usage recorded. Restocking request created automatically.'
+                                                );
+
+                                                return res.redirect('/ingredient-usage');
+                                            }
+                                        );
+
+                                    } else {
+
+                                        req.flash(
+                                            'success',
+                                            'Ingredient usage recorded successfully.'
+                                        );
+
+                                        return res.redirect('/ingredient-usage');
+                                    }
+
+                                }
+                            );
+
+                        } else {
+
+                            req.flash(
+                                'success',
+                                'Ingredient usage recorded successfully.'
+                            );
+
+                            return res.redirect('/ingredient-usage');
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+    });
+
+});
 
 // Starting the server
 app.listen(3000, () => {
