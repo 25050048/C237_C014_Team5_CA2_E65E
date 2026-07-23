@@ -3,10 +3,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Inventory Board</title>
+    <title>Manager Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body class="bg-light">
+
+    <!-- Header: takes the manager back to the kitchen dashboard -->
+    <header class="bg-dark">
+        <div class="container d-flex align-items-center justify-content-between py-2">
+            <a href="/dashboard" class="btn btn-outline-light btn-sm">
+                &larr; Back to Kitchen Dashboard
+            </a>
+            <span class="navbar-brand text-white mb-0">Manager Dashboard</span>
+        </div>
+    </header>
 
     <nav class="navbar navbar-dark bg-dark">
         <div class="container">
@@ -16,136 +27,146 @@
 
     <main class="container py-4">
 
-        <h1>Inventory Board</h1>
-        <p class="text-muted mb-4">Ingredients grouped by expiry status, most urgent first within each group.</p>
+        <h1>Manager Dashboard</h1>
 
-        <div class="card shadow-sm mb-4 border-success">
-            <div class="card-header bg-success text-white">
-                <h4 class="mb-0">Good</h4>
+        <% if (user) { %>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Total Ingredients Available</h6>
+                            <h2><%= totalAvailable %></h2>
+                            <small class="text-muted">Excludes expired stock</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card shadow-sm h-100 border-danger">
+                        <div class="card-body">
+                            <h6 class="text-muted">Expired Ingredients</h6>
+                            <h2><%= expiredCount %></h2>
+                            <small class="text-muted">Number of ingredients past expiry date</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card shadow-sm h-100 border-warning">
+                        <div class="card-body">
+                            <h6 class="text-muted">Low Stock Ingredients</h6>
+                            <h2><%= lowStockCount %></h2>
+                            <small class="text-muted">Number of ingredients at/below minimum stock</small>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <% if (goodItems.length === 0) { %>
-                    <p class="mb-0">None.</p>
-                <% } else { %>
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Quantity</th>
-                                <th>Unit</th>
-                                <th>Supplier</th>
-                                <th>Storage Location</th>
-                                <th>Expiry Date</th>
-                                <th>Minimum Stock</th>
-                                <th>Days Until Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% goodItems.forEach(function(item) { %>
-                                <tr>
-                                    <td><%= item.ingredientName %></td>
-                                    <td><%= item.category %></td>
-                                    <td><%= item.quantity %></td>
-                                    <td><%= item.unit %></td>
-                                    <td><%= item.supplier %></td>
-                                    <td><%= item.storageLocation %></td>
-                                    <td><%= item.expiryDate %></td>
-                                    <td><%= item.minimumStock %></td>
-                                    <td><%= item.daysUntilExpiry %></td>
-                                </tr>
-                            <% }); %>
-                        </tbody>
-                    </table>
-                <% } %>
-            </div>
-        </div>
 
-        <div class="card shadow-sm mb-4 border-warning">
-            <div class="card-header bg-warning">
-                <h4 class="mb-0">Close to Expiry (within 7 days)</h4>
+            <!-- Charts go under the "how much ingredients there are" section above -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Most Used Ingredients</h6>
+                            <% if (mostUsedIngredients.length === 0) { %>
+                                <p class="mb-0">No usage recorded yet.</p>
+                            <% } else { %>
+                                <canvas id="mostUsedChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Least Used Ingredients</h6>
+                            <% if (leastUsedIngredients.length === 0) { %>
+                                <p class="mb-0">No usage recorded yet.</p>
+                            <% } else { %>
+                                <canvas id="leastUsedChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <% if (nearExpiryItems.length === 0) { %>
-                    <p class="mb-0">None.</p>
-                <% } else { %>
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Quantity</th>
-                                <th>Unit</th>
-                                <th>Supplier</th>
-                                <th>Storage Location</th>
-                                <th>Expiry Date</th>
-                                <th>Minimum Stock</th>
-                                <th>Days Until Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% nearExpiryItems.forEach(function(item) { %>
-                                <tr>
-                                    <td><%= item.ingredientName %></td>
-                                    <td><%= item.category %></td>
-                                    <td><%= item.quantity %></td>
-                                    <td><%= item.unit %></td>
-                                    <td><%= item.supplier %></td>
-                                    <td><%= item.storageLocation %></td>
-                                    <td><%= item.expiryDate %></td>
-                                    <td><%= item.minimumStock %></td>
-                                    <td><%= item.daysUntilExpiry %></td>
-                                </tr>
-                            <% }); %>
-                        </tbody>
-                    </table>
-                <% } %>
-            </div>
-        </div>
 
-        <div class="card shadow-sm mb-4 border-danger">
-            <div class="card-header bg-danger text-white">
-                <h4 class="mb-0">Expired</h4>
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm h-100 border-danger">
+                        <div class="card-body">
+                            <h6 class="text-muted">Food Waste (Expired Ingredients)</h6>
+                            <% if (foodWasteItems.length === 0) { %>
+                                <p class="mb-0">No food waste right now — nothing has expired.</p>
+                            <% } else { %>
+                                <canvas id="foodWasteChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <% if (expiredItems.length === 0) { %>
-                    <p class="mb-0">None.</p>
-                <% } else { %>
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Category</th>
-                                <th>Quantity</th>
-                                <th>Unit</th>
-                                <th>Supplier</th>
-                                <th>Storage Location</th>
-                                <th>Expiry Date</th>
-                                <th>Minimum Stock</th>
-                                <th>Days Until Expiry</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% expiredItems.forEach(function(item) { %>
-                                <tr>
-                                    <td><%= item.ingredientName %></td>
-                                    <td><%= item.category %></td>
-                                    <td><%= item.quantity %></td>
-                                    <td><%= item.unit %></td>
-                                    <td><%= item.supplier %></td>
-                                    <td><%= item.storageLocation %></td>
-                                    <td><%= item.expiryDate %></td>
-                                    <td><%= item.minimumStock %></td>
-                                    <td><%= item.daysUntilExpiry %></td>
-                                </tr>
-                            <% }); %>
-                        </tbody>
-                    </table>
-                <% } %>
-            </div>
-        </div>
+        <% } %>
 
     </main>
+
+    <% if (user) { %>
+    <script>
+        const mostUsedData = <%- JSON.stringify(mostUsedIngredients) %>;
+        const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
+        const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
+
+        const pieColors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
+
+        if (mostUsedData.length > 0) {
+            new Chart(document.getElementById('mostUsedChart'), {
+                type: 'pie',
+                data: {
+                    labels: mostUsedData.map(i => i.ingredientName),
+                    datasets: [{
+                        data: mostUsedData.map(i => i.totalUsed),
+                        backgroundColor: pieColors
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        if (leastUsedData.length > 0) {
+            new Chart(document.getElementById('leastUsedChart'), {
+                type: 'pie',
+                data: {
+                    labels: leastUsedData.map(i => i.ingredientName),
+                    datasets: [{
+                        data: leastUsedData.map(i => i.totalUsed),
+                        backgroundColor: pieColors
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        if (foodWasteData.length > 0) {
+            new Chart(document.getElementById('foodWasteChart'), {
+                type: 'bar',
+                data: {
+                    labels: foodWasteData.map(i => i.ingredientName),
+                    datasets: [{
+                        label: 'Wasted quantity',
+                        data: foodWasteData.map(i => i.quantity),
+                        backgroundColor: '#e15759'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Quantity (weight/liters)' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    <% } %>
 
 </body>
 </html>
