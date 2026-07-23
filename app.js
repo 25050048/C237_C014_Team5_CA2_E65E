@@ -234,11 +234,8 @@ console.error('Failed to reset login attempts:', err3);
 });
 
 staffMember.failedAttempts = 0;
-req.session.user = staffMember; 
+req.session.user = staffMember;
 
-if (staffMember.role !== 'SuperAdmin') {
-req.flash('success', 'Login successful!');
-}
 // Route to the page that matches the account's role (Jun Yuan)
 if (staffMember.role === 'SuperAdmin') {
 res.redirect('/');
