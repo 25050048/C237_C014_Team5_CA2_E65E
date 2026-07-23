@@ -462,7 +462,7 @@ res.render('dashboard', {
   storageOptions: storageRows.map(r => r.storageLocation)
  });
 
- } catch (error) {
+} catch (error) {
         console.error('Dashboard error:', error);
 
         res.status(500).send(`
@@ -472,8 +472,7 @@ res.render('dashboard', {
                 <a href="/">Return home</a>
             </div>
         `);
-    }
-});
+}
 
 // Search & Filter routes (Tara)
 app.get('/search', requireLogin, async (req, res) => {
