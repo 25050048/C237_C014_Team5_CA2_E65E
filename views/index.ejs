@@ -37,9 +37,6 @@
                 <p>Track ingredients, get notified before things expire, and keep your kitchen running smoothly.</p>
                 <% if (typeof user !== 'undefined' && user) { %>
                     <p class="hero-greeting">Welcome back, <%= user.fullName %></p>
-                    <div class="hero-actions">
-                        <a href="<%= user.role === 'Chef' ? '/dashboard' : '/admin' %>" class="btn btn-dark">Go to dashboard</a>
-                    </div>
                 <% } else { %>
                     <div class="hero-actions">
                         <a href="/register" class="btn btn-dark">Get started</a>
