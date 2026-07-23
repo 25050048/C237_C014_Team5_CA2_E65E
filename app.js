@@ -2,7 +2,32 @@ const express = require('express');
 const mysql = require('mysql2');
 const session = require('express-session');
 const flash = require('connect-flash');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const app = express();
+
+const imagesPath = path.join(__dirname, 'public', 'images');
+if (!fs.existsSync(imagesPath)) {
+    fs.mkdirSync(imagesPath, { recursive: true });
+}
+
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: imagesPath,
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname);
+            const safeName = path.basename(file.originalname, ext).replace(/\s+/g, '-').toLowerCase();
+            cb(null, `${safeName}-${Date.now()}${ext}`);
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const isAllowedExt = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const isAllowedMime = allowedTypes.test(file.mimetype);
+        cb(null, isAllowedExt && isAllowedMime);
+    }
+});
 
 // Database connection
 const db = mysql.createConnection({
@@ -210,6 +235,36 @@ app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
+app.get('/addIngredient', checkAuthenticated, checkManager, (req, res) => {
+    res.render('addIngredient', {
+        user: req.session.user,
+        errorMessages: req.flash('error'),
+        formData: req.flash('formData')[0] || {}
+    });
+});
+
+app.post('/addProduct', checkAuthenticated, checkManager, upload.single('image'), (req, res) => {
+    const { name, quantity, unit, supplier, category, expiryDate, storageLocation } = req.body;
+    if (!name || !quantity) {
+        req.flash('error', 'Name and quantity are required.');
+        req.flash('formData', req.body);
+        return res.redirect('/addIngredient');
+    }
+
+    const filename = req.file ? req.file.filename : '';
+    const sql = `INSERT INTO ingredients (ingredientName, quantity, unit, supplier, category, expiryDate, image, storageLocation) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+    req.db.query(sql, [name, quantity, unit || '', supplier || '', category || '', expiryDate || null, filename, storageLocation || ''], (err) => {
+        if (err) {
+            console.error('Add ingredient error:', err);
+            req.flash('error', 'Unable to add ingredient.');
+            req.flash('formData', req.body);
+            return res.redirect('/addIngredient');
+        }
+        req.flash('success', 'Ingredient added successfully.');
+        res.redirect('/manage-inventory');
+    });
+});
+
 // Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
 app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
     try {
@@ -266,6 +321,65 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
         req.flash('error', 'Could not load the inventory manager. Please try again.');
         res.redirect('/admin');
     }
+});
+
+app.get('/updateIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    req.db.query('SELECT * FROM ingredients WHERE ingredientId = ?', [ingredientId], (err, results) => {
+        if (err) {
+            console.error('Update ingredient load error:', err);
+            req.flash('error', 'Could not load ingredient details.');
+            return res.redirect('/manage-inventory');
+        }
+        if (results.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/manage-inventory');
+        }
+        res.render('updateIngredient', {
+            user: req.session.user,
+            ingredient: results[0],
+            errorMessages: req.flash('error')
+        });
+    });
+});
+
+app.post('/updateIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    const {
+        ingredientName,
+        quantity,
+        unit,
+        supplier,
+        category,
+        expiryDate,
+        storageLocation,
+        currentImage
+    } = req.body;
+    const image = currentImage || null;
+
+    const sql = `UPDATE ingredients SET ingredientName = ?, quantity = ?, unit = ?, supplier = ?, category = ?, expiryDate = ?, storageLocation = ?, image = ? WHERE ingredientId = ?`;
+    req.db.query(sql, [ingredientName, quantity, unit, supplier, category, expiryDate || null, storageLocation, image, ingredientId], (err, result) => {
+        if (err) {
+            console.error('Update ingredient error:', err);
+            req.flash('error', 'Unable to update ingredient.');
+            return res.redirect(`/updateIngredient/${ingredientId}`);
+        }
+        req.flash('success', 'Ingredient updated successfully.');
+        res.redirect('/manage-inventory');
+    });
+});
+
+app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    req.db.query('DELETE FROM ingredients WHERE ingredientId = ?', [ingredientId], (err, result) => {
+        if (err) {
+            console.error('Delete ingredient error:', err);
+            req.flash('error', 'Unable to delete ingredient.');
+            return res.redirect('/manage-inventory');
+        }
+        req.flash('success', 'Ingredient deleted successfully.');
+        res.redirect('/manage-inventory');
+    });
 });
 
 // Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
