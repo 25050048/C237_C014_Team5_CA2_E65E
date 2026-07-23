@@ -211,7 +211,7 @@ res.render('admin', { user: req.session.user });
 });
 
 // Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
-app.get('/manageInventory', checkAuthenticated, checkManager, async (req, res) => {
+app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
     try {
         const search = req.query.search || '';
         const category = req.query.category || '';
