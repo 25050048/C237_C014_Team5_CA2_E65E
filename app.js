@@ -394,6 +394,52 @@ app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
     }
 });
 
+
+// Added so the Search/Filter widgets embedded on the dashboard can
+// populate their dropdowns (Tara)
+const [categoryRows] = await db.promise().query(
+   `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+);
+const [storageRows] = await db.promise().query(
+   `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+);
+
+res.render('dashboard', {
+   user: req.session.user || null,
+
+   totalIngredients:
+         totalResults[0].totalIngredients,
+
+   lowStockCount:
+         lowStockIngredients.length,
+
+    expiredCount:
+         expiredIngredients.length,
+
+    expiringSoonCount:
+         expiringSoonIngredients.length,
+
+  lowStockIngredients,
+  expiredIngredients,
+  expiringSoonIngredients,
+
+  categories: categoryRows.map(r => r.category),
+  storageOptions: storageRows.map(r => r.storageLocation)
+ });
+
+ } catch (error) {
+        console.error('Dashboard error:', error);
+
+        res.status(500).send(`
+            <div style="font-family: Arial; padding: 40px;">
+                <h1>Dashboard database error</h1>
+                <p>${error.message}</p>
+                <a href="/">Return home</a>
+            </div>
+        `);
+    }
+});
+
 // Search & Filter routes (Tara)
 app.get('/search', requireLogin, async (req, res) => {
     try {
