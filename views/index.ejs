@@ -11,11 +11,24 @@
 
     <div class="container">
         <% if (messages && messages.length > 0) { %>
-            <div class="alert alert-success mt-3">
-                <% messages.forEach(function(message) { %>
+          <div class="modal fade" id="loginSuccessModal" tabindex="-1" aria-labelledby="loginSuccessModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content border-success">
+                <div class="modal-header bg-success text-white">
+                  <h5 class="modal-title" id="loginSuccessModalLabel">Success</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <% messages.forEach(function(message) { %>
                     <p class="mb-0"><%= message %></p>
-                <% }); %>
+                  <% }); %>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+                </div>
+              </div>
             </div>
+          </div>
         <% } %>
 
         <section class="hero-section">
@@ -60,5 +73,17 @@
             </div>
         </section>
     </div>
+    <% if (messages && messages.length > 0) { %>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          var loginSuccessModalEl = document.getElementById('loginSuccessModal');
+          if (loginSuccessModalEl) {
+            var loginSuccessModal = new bootstrap.Modal(loginSuccessModalEl);
+            loginSuccessModal.show();
+          }
+        });
+      </script>
+    <% } %>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
