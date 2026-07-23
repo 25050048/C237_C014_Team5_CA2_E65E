@@ -8,7 +8,10 @@
     <%- include('partials/navbar') %>
     <div class="container">
         <h1 class="mt-5">Admin Dashboard</h1>
-        <p>Welcome, <%= user.username %> (<%= user.role %>)</p>
+        <p>Welcome, <%= user.fullName %> (<%= user.role %>)</p>
+        <% if (user.isSuperAdmin) { %>
+            <a href="/register-manager" class="btn btn-secondary">Register new manager</a>
+        <% } %>
         <a href="/logout" class="btn btn-primary">Logout</a>
     </div>
 </body>
