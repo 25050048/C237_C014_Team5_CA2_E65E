@@ -341,6 +341,8 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
                 leastUsedIngredients
             });
         });
+    });
+});
 
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
@@ -348,7 +350,7 @@ req.session.destroy();
 res.redirect('/');
 });
 
-// Dashboard route - chef only (Tassie)
+// Dashboard route - chef only (Tassie) with Search/Filter dropdowns (Tara)
 app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
     try {
         const [totalResults] = await db.promise().query(`
@@ -396,28 +398,31 @@ app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
             ORDER BY expiryDate ASC
         `);
 
+        // Added so the Search/Filter widgets embedded on the dashboard can
+        // populate their dropdowns (Tara)
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        );
+        const [storageRows] = await db.promise().query(
+            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+        );
+
         res.render('dashboard', {
             user: req.session.user || null,
-
-            totalIngredients:
-                totalResults[0].totalIngredients,
-
-            lowStockCount:
-                lowStockIngredients.length,
-
-            expiredCount:
-                expiredIngredients.length,
-
-            expiringSoonCount:
-                expiringSoonIngredients.length,
-
+            totalIngredients: totalResults[0].totalIngredients,
+            lowStockCount: lowStockIngredients.length,
+            expiredCount: expiredIngredients.length,
+            expiringSoonCount: expiringSoonIngredients.length,
             lowStockIngredients,
             expiredIngredients,
-            expiringSoonIngredients
+            expiringSoonIngredients,
+            categories: categoryRows.map(r => r.category),
+            storageOptions: storageRows.map(r => r.storageLocation)
         });
 
     } catch (error) {
         console.error('Dashboard error:', error);
+<<<<<<< HEAD
 
         res.status(500).send(`
             <div style="font-family: Arial; padding: 40px;">
@@ -465,6 +470,8 @@ res.render('dashboard', {
 } catch (error) {
         console.error('Dashboard error:', error);
 
+=======
+>>>>>>> 47e7524832b68260cb371822ac9b47b9ce3aa7ad
         res.status(500).send(`
             <div style="font-family: Arial; padding: 40px;">
                 <h1>Dashboard database error</h1>

@@ -15,6 +15,14 @@
     "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "mysql2": "^3.23.0"
-  }
+    "mysql2": "^3.23.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/25050048/C237_C014_Team5_CA2_E65E.git"
+  },
+  "bugs": {
+    "url": "https://github.com/25050048/C237_C014_Team5_CA2_E65E/issues"
+  },
+  "homepage": "https://github.com/25050048/C237_C014_Team5_CA2_E65E#readme"
 }

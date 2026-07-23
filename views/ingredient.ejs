@@ -35,18 +35,18 @@
 
     <!-- Detailed ingredient information viewed by chefs and managers -->
     <div class="container mt-4">
-        <p>Welcome, <%= user.username %> (<%= user.role %>)</p>
+        <p>Welcome, <%= staff.fullName %> (<%= staff.role %>)</p>
         <h2 class="text-center mb-4">Ingredient Details</h2>
-        <% if (product) { %>
+        <% if (ingredient) { %>
             <div class="card mx-auto" style="max-width: 600px;">
                 <div class="card-body">
-                    <p><b>Ingredient Name:</b><br> <%= product.productName %></p>
-                    <p><b>Image:</b><br> <img src="../images/<%= product.image %>" width="20%"></p>
-                    <p><b>Quantity:</b><br> <%= product.quantity %> <%= product.unit || 'kg' %></p>
-                    <p><b>Supplier:</b><br> <%= product.supplier || 'N/A' %></p>
-                    <p><b>Category:</b><br> <%= product.category || 'General' %></p>
-                    <p><b>Expiry Date:</b><br> <%= product.expiryDate ? new Date(product.expiryDate).toLocaleDateString() : 'Not set' %></p>
-                    <p><b>Usage Count:</b><br> <%= product.usageCount || 0 %></p>
+                    <p><b>Ingredient Name:</b><br> <%= ingredient.ingredientName %></p>
+                    <p><b>Image:</b><br> <img src="../images/<%= ingredient.image %>" width="20%"></p>
+                    <p><b>Category:</b><br> <%= ingredient.category || 'General' %></p>                    
+                    <p><b>Quantity:</b><br> <%= ingredient.quantity %> <%= ingredient.unit || 'kg' %></p>
+                    <p><b>Storage Location:</b><br> <%= ingredient.storageLocation || 'N/A' %></p>
+                    <p><b>Supplier:</b><br> <%= ingredient.supplier || 'N/A' %></p>                    
+                    <p><b>Expiry Date:</b><br> <%= ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'Not set' %></p>                    
                 </div>
             </div>
         <% } else { %>
