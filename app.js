@@ -203,11 +203,8 @@ res.redirect('/login');
 });
 
 // Admin route (Jun Yuan)
-// SuperAdmin skips the admin homepage and goes straight to the inventory manager.
+// Manager and SuperAdmin both land on the same admin homepage.
 app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
-if (req.session.user.role === 'SuperAdmin') {
-    return res.redirect('/manage-inventory');
-}
 res.render('admin', { user: req.session.user });
 });
 
