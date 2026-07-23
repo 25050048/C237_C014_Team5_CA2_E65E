@@ -300,6 +300,12 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             ORDER BY totalUsed DESC
             LIMIT 1
         `);
+        const [categoryRows] = await db.promise().query(`
+            SELECT DISTINCT category
+            FROM ingredients
+            WHERE category IS NOT NULL AND category <> ''
+            ORDER BY category
+        `);
 
         res.render('manageInventory', {
             user: req.session.user,
@@ -312,6 +318,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             },
             search,
             category,
+            categories: categoryRows.map(r => r.category),
             ingredients: products,
             messages: req.flash('error'),
             successMessages: req.flash('success')
