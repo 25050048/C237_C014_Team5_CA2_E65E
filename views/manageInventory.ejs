@@ -70,12 +70,12 @@
       </div>
       <div class="col-md-4">
         <select name="category" class="form-control">
-          <option value="">All Categories</option>
-          <option value="Vegetables" <%= category === 'Vegetables' ? 'selected' : '' %>>Vegetables</option>
-          <option value="Proteins" <%= category === 'Proteins' ? 'selected' : '' %>>Proteins</option>
-          <option value="Grains" <%= category === 'Grains' ? 'selected' : '' %>>Grains</option>
-          <option value="Dairy" <%= category === 'Dairy' ? 'selected' : '' %>>Dairy</option>
-          <option value="General" <%= category === 'General' ? 'selected' : '' %>>General</option>
+          <option value="" <%= category === '' ? 'selected' : '' %>>All Categories</option>
+          <% if (categories && categories.length > 0) { %>
+            <% categories.forEach(function(cat) { %>
+              <option value="<%= cat %>" <%= category === cat ? 'selected' : '' %>><%= cat %></option>
+            <% }); %>
+          <% } %>
         </select>
       </div>
       <div class="col-md-3">
