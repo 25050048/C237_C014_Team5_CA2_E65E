@@ -483,6 +483,202 @@ app.get('/expiring', requireLogin, async (req, res) => {
     }
 });
 
+// [GET] Display Ingredient Usage Form (Sean)
+app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
+
+    const sql = `
+        SELECT
+            ingredientId,
+            ingredientName,
+            quantity,
+            unit
+        FROM ingredients
+        ORDER BY ingredientName ASC
+    `;
+
+    req.db.query(sql, (err, ingredients) => {
+
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Unable to load ingredients.');
+            return res.redirect('/dashboard');
+        }
+
+        res.render('ingredientUsage', {
+            user: req.session.user,
+            ingredients,
+            messages: req.flash('success'),
+            errors: req.flash('error')
+        });
+
+    });
+
+});
+
+
+// [POST] Record Ingredient Usage, Update Inventory & Create Restocking Request (Sean)
+app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
+
+    const ingredientId = req.body.ingredientId;
+    const quantityUsed = parseFloat(req.body.quantityUsed);
+    const remarks = req.body.remarks;
+    const staffId = req.session.user.staffId;
+
+    if (!ingredientId || isNaN(quantityUsed) || quantityUsed <= 0) {
+        req.flash('error', 'Please enter a valid quantity.');
+        return res.redirect('/ingredient-usage');
+    }
+
+    const ingredientSQL = `
+        SELECT *
+        FROM ingredients
+        WHERE ingredientId = ?
+    `;
+
+    req.db.query(ingredientSQL, [ingredientId], (err, ingredientResult) => {
+
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Database error.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        if (ingredientResult.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const ingredient = ingredientResult[0];
+
+        if (quantityUsed > ingredient.quantity) {
+            req.flash('error', 'Quantity used exceeds available stock.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const usageSQL = `
+            INSERT INTO ingredient_usage
+            (ingredientId, staffId, quantityUsed, remarks)
+            VALUES (?, ?, ?, ?)
+        `;
+
+        req.db.query(
+            usageSQL,
+            [ingredientId, staffId, quantityUsed, remarks],
+            (err) => {
+
+                if (err) {
+                    console.error(err);
+                    req.flash('error', 'Unable to record ingredient usage.');
+                    return res.redirect('/ingredient-usage');
+                }
+
+                const newQuantity = ingredient.quantity - quantityUsed;
+
+                const updateSQL = `
+                    UPDATE ingredients
+                    SET quantity = ?
+                    WHERE ingredientId = ?
+                `;
+
+                req.db.query(
+                    updateSQL,
+                    [newQuantity, ingredientId],
+                    (err) => {
+
+                        if (err) {
+                            console.error(err);
+                            req.flash('error', 'Unable to update ingredient stock.');
+                            return res.redirect('/ingredient-usage');
+                        }
+
+                        if (newQuantity <= ingredient.minimumStock) {
+
+                            const checkSQL = `
+                                SELECT *
+                                FROM restock_requests
+                                WHERE ingredientId = ?
+                                AND status = 'Pending'
+                            `;
+
+                            req.db.query(
+                                checkSQL,
+                                [ingredientId],
+                                (err, pendingResult) => {
+
+                                    if (err) {
+                                        console.error(err);
+                                        req.flash('error', 'Unable to check restock requests.');
+                                        return res.redirect('/ingredient-usage');
+                                    }
+
+                                    if (pendingResult.length === 0) {
+
+                                        const requestQty = ingredient.minimumStock * 2;
+
+                                        const requestSQL = `
+                                            INSERT INTO restock_requests
+                                            (
+                                                ingredientId,
+                                                requestedBy,
+                                                requestedQuantity,
+                                                status
+                                            )
+                                            VALUES (?, ?, ?, 'Pending')
+                                        `;
+
+                                        req.db.query(
+                                            requestSQL,
+                                            [ingredientId, staffId, requestQty],
+                                            (err) => {
+
+                                                if (err) {
+                                                    console.error(err);
+                                                    req.flash('error', 'Usage recorded but restock request could not be created.');
+                                                    return res.redirect('/ingredient-usage');
+                                                }
+
+                                                req.flash(
+                                                    'success',
+                                                    'Ingredient usage recorded. Restocking request created automatically.'
+                                                );
+
+                                                return res.redirect('/ingredient-usage');
+                                            }
+                                        );
+
+                                    } else {
+
+                                        req.flash(
+                                            'success',
+                                            'Ingredient usage recorded successfully.'
+                                        );
+
+                                        return res.redirect('/ingredient-usage');
+                                    }
+
+                                }
+                            );
+
+                        } else {
+
+                            req.flash(
+                                'success',
+                                'Ingredient usage recorded successfully.'
+                            );
+
+                            return res.redirect('/ingredient-usage');
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+    });
+
+});
+
 // Starting the server
 app.listen(3000, () => {
     console.log('Server started on port 3000');
