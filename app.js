@@ -10,7 +10,7 @@ const db = mysql.createConnection({
     user: 'c237_014',
     password: 'c237014@2026!',
     database: 'c237_014_team5_ca2',
-    ssl: {rejectUnauthorized: false} 
+    ssl: {rejectUnauthorized: false}
 });
 db.connect((err) => {
     if (err) {
@@ -18,6 +18,14 @@ db.connect((err) => {
     }
     console.log('Connected to database');
 });
+
+// Hardcoded superadmin override (Jun Yuan)
+// The staff table only has role ENUM('Chef','Manager') - there is no superadmin
+// value in the DB. Add the staff email(s) that should get superadmin access here,
+// e.g. SUPERADMIN_EMAILS = ['michaeltan@restaurant.com'].
+const SUPERADMIN_EMAILS = [
+    // 'youremail@example.com',
+];
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static('public'));
@@ -51,7 +59,7 @@ res.redirect('/login');
 
 //  Check if user is manager or superadmin. (Jun Yuan)
 const checkManager = (req, res, next) => {
-if (req.session.user.role === 'manager' || req.session.user.role === 'superadmin') {
+if (req.session.user.role === 'Manager' || req.session.user.isSuperAdmin) {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -60,8 +68,10 @@ res.redirect('/dashboard');
 };
 
 // Check if user is superadmin only - gates the register-admin page (Jun Yuan)
+// Superadmin is not a DB role (staff.role is only 'Chef'/'Manager') - it's the
+// hardcoded email allowlist above, checked at login and stashed on the session.
 const checkSuperAdmin = (req, res, next) => {
-if (req.session.user && req.session.user.role === 'superadmin') {
+if (req.session.user && req.session.user.isSuperAdmin) {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -92,20 +102,27 @@ req.flash('error', 'Password should be at least 6 or more characters long');
 req.flash('formData', req.body);
 return res.redirect('/register');
 }
-// If all validations pass, proceed to the next middleware or route handler 
+// If all validations pass, proceed to the next middleware or route handler
 next();
 };
 
 // Register route with validateRegistration middleware integrated (Jun Yuan)
-// Role is never read from the form - public registration always creates a 'chef' account.
+// Role is never read from the form - public registration always creates a 'Chef' account.
+// NOTE: the DB table is `staff` (not `users`), and its name column is `fullName`.
 app.post('/register', validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
-    const role = 'chef';
+    const role = 'Chef';
 
-    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    const sql = 'INSERT INTO staff (fullName, email, password, role) VALUES (?, ?, SHA1(?), ?)';
     db.query(sql, [fullname, email, password, role], (err, result) => {
         if (err) {
-            throw err;
+            console.error('Register error:', err);
+            const message = err.code === 'ER_DUP_ENTRY'
+                ? 'That email is already registered. Please log in instead.'
+                : 'Something went wrong while registering. Please try again.';
+            req.flash('error', message);
+            req.flash('formData', req.body);
+            return res.redirect('/register');
         }
         console.log(result);
         req.flash('success', 'Registration successful! Please log in.');
@@ -121,12 +138,18 @@ app.get('/register-manager', checkAuthenticated, checkSuperAdmin, (req, res) => 
 
 app.post('/register-manager', checkAuthenticated, checkSuperAdmin, validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
-    const role = 'manager';
+    const role = 'Manager';
 
-    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    const sql = 'INSERT INTO staff (fullName, email, password, role) VALUES (?, ?, SHA1(?), ?)';
     db.query(sql, [fullname, email, password, role], (err, result) => {
         if (err) {
-            throw err;
+            console.error('Register-manager error:', err);
+            const message = err.code === 'ER_DUP_ENTRY'
+                ? 'That email is already registered.'
+                : 'Something went wrong while creating the account. Please try again.';
+            req.flash('error', message);
+            req.flash('formData', req.body);
+            return res.redirect('/register-manager');
         }
         req.flash('success', 'Manager account created.');
         res.redirect('/admin');
@@ -144,6 +167,7 @@ errors: req.flash('error')
 });
 
 // User login route (Jun Yuan)
+// NOTE: the DB table is `staff` (not `users`).
 app.post('/login', (req, res) => {
 const { email, password } = req.body;
 // Validate email and password
@@ -151,23 +175,27 @@ if (!email || !password) {
 req.flash('error', 'All fields are required.');
 return res.redirect('/login');
 }
-const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
+const sql = 'SELECT * FROM staff WHERE email = ? AND password = SHA1(?)';
 db.query(sql, [email, password], (err, results) => {
 if (err) {
-throw err;
+console.error('Login error:', err);
+req.flash('error', 'Something went wrong while logging in. Please try again.');
+return res.redirect('/login');
 }
 if (results.length > 0) {
 // Successful login
-req.session.user = results[0]; // store user in session
+const staffMember = results[0];
+staffMember.isSuperAdmin = SUPERADMIN_EMAILS.includes(staffMember.email);
+req.session.user = staffMember; // store user in session
 req.flash('success', 'Login successful!');
 // Route to the dashboard that matches the account's role
-if (results[0].role === 'manager' || results[0].role === 'superadmin') {
+if (staffMember.role === 'Manager' || staffMember.isSuperAdmin) {
 res.redirect('/admin');
 } else {
 res.redirect('/dashboard');
 }
 } else {
-// Invalid credentials 
+// Invalid credentials
 req.flash('error', 'Invalid email or password.');
 res.redirect('/login');
 }
@@ -183,7 +211,9 @@ res.render('admin', { user: req.session.user });
 app.get('/board', checkAuthenticated, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
         if (err) {
-            throw err;
+            console.error('Board error:', err);
+            req.flash('error', 'Could not load the inventory board. Please try again.');
+            return res.redirect('/dashboard');
         }
 
         const NEAR_EXPIRY_DAYS = 7;
@@ -226,12 +256,12 @@ res.redirect('/');
 // Dashboard route (Tassie)
 app.get('/dashboard', requireLogin, async (req, res) => {
     try {
-        const [totalResults] = await db.query(`
+        const [totalResults] = await db.promise().query(`
             SELECT COUNT(*) AS totalIngredients
             FROM ingredients
         `);
 
-        const [lowStockIngredients] = await db.query(`
+        const [lowStockIngredients] = await db.promise().query(`
             SELECT
                 ingredientId,
                 ingredientName,
@@ -244,7 +274,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
             ORDER BY quantity ASC
         `);
 
-        const [expiredIngredients] = await db.query(`
+        const [expiredIngredients] = await db.promise().query(`
             SELECT
                 ingredientId,
                 ingredientName,
@@ -257,7 +287,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
             ORDER BY expiryDate ASC
         `);
 
-        const [expiringSoonIngredients] = await db.query(`
+        const [expiringSoonIngredients] = await db.promise().query(`
             SELECT
                 ingredientId,
                 ingredientName,
