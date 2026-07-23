@@ -57,8 +57,8 @@
           <input type="text" class="form-control" id="unit" name="unit" value="<%= formData.unit || 'kg' %>">
         </div>
         <div class="col-md-4 mb-3">
-          <label for="price" class="form-label">Price</label>
-          <input type="number" class="form-control" id="price" name="price" min="0" step="0.01" value="<%= formData.price || '' %>" required>
+          <label for="storageLocation" class="form-label">Storage Location</label>
+          <input type="text" class="form-control" id="storageLocation" name="storageLocation" value="<%= formData.storageLocation || '' %>" required>
         </div>
       </div>
 
@@ -75,11 +75,11 @@
 
       <div class="mb-3">
         <label for="expiryDate" class="form-label">Expiry Date</label>
-        <input type="date" class="form-control" id="expiryDate" name="expiryDate">
+        <input type="date" class="form-control" id="expiryDate" name="expiryDate" value="<%= formData.expiryDate || '' %>">
       </div>
 
       <div class="mb-4">
-        <label for="image" class="form-label">Ingredient Image</label>
+        <label for="image" class="form-label">Upload Ingredient Image</label>
         <input class="form-control" type="file" id="image" name="image" accept="image/*">
       </div>
 
