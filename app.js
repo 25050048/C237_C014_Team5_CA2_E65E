@@ -248,6 +248,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
 
         res.render('manageInventory', {
             user: req.session.user,
+            staff: req.session.user,
             stats: {
                 totalIngredients,
                 lowStockCount,
@@ -256,7 +257,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             },
             search,
             category,
-            products,
+            ingredients: products,
             messages: req.flash('error'),
             successMessages: req.flash('success')
         });
