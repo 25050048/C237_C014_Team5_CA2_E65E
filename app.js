@@ -310,18 +310,96 @@ app.get('/dashboard', requireLogin, async (req, res) => {
     }
 });
 
-// Search & Filter routes (Tara)
-app.get('/search', (req, res) => {
-    const db = req.db;
-    // your search/filter query here
-    res.render('search', { items: results, categories: categories, /* ...etc */ });
-});
 
-app.get('/expiring', (req, res) => {
-    const db = req.db;
-    // your expiring-soon query here
-    res.render('expiring', { items: results });
+// Search & Filter routes (Tara)
+app.get('/search', requireLogin, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const category = req.query.category || '';
+        const storage = req.query.storage || '';
+        const expiry = req.query.expiry || '';
+        const sort = req.query.sort || '';
+ 
+        let sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE 1=1
+        `;
+        const params = [];
+ 
+        if (search) {
+            sql += ` AND ingredientName LIKE ?`;
+            params.push(`%${search}%`);
+        }
+        if (category) {
+            sql += ` AND category = ?`;
+            params.push(category);
+        }
+        if (storage) {
+            sql += ` AND storageLocation = ?`;
+            params.push(storage);
+        }
+        if (expiry === 'expired') {
+            sql += ` AND expiryDate < CURDATE()`;
+        } else if (expiry === '3days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
+        } else if (expiry === '7days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
+        }
+ 
+        if (sort === 'expiry_desc') {
+            sql += ` ORDER BY expiryDate DESC`;
+        } else if (sort === 'name_asc') {
+            sql += ` ORDER BY ingredientName ASC`;
+        } else if (sort === 'newest') {
+            sql += ` ORDER BY createdAt DESC`;
+        } else {
+            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
+        }
+ 
+        const [items] = await db.promise().query(sql, params);
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        );
+        const [storageRows] = await db.promise().query(
+            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+        );
+ 
+        res.render('search', {
+            user: req.session.user,
+            items,
+            categories: categoryRows.map(r => r.category),
+            storageOptions: storageRows.map(r => r.storageLocation),
+            search,
+            selectedCategory: category,
+            selectedStorage: storage,
+            selectedExpiry: expiry,
+            selectedSort: sort
+        });
+    } catch (error) {
+        console.error('Search error:', error);
+        req.flash('error', 'Something went wrong while searching. Please try again.');
+        res.redirect('/dashboard');
+    }
 });
+ 
+app.get('/expiring', requireLogin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+            ORDER BY expiryDate ASC
+        `;
+        const [items] = await db.promise().query(sql);
+        res.render('expiring', { user: req.session.user, items });
+    } catch (error) {
+        console.error('Expiring error:', error);
+        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
+        res.redirect('/dashboard');
+    }
+});
+ 
 
 
 // Starting the server
