@@ -25,6 +25,22 @@
         </p>
 
         <div class="row g-3 mb-5">
+            <div class="col-md-6">
+                <%- include('partials/searchBar', { search: typeof search !== 'undefined' ? search : '' }) %>
+            </div>
+            <div class="col-md-6">
+                <%- include('partials/filterOnly', {
+                    categories: typeof categories !== 'undefined' ? categories : [],
+                    storageOptions: typeof storageOptions !== 'undefined' ? storageOptions : [],
+                    selectedCategory: typeof selectedCategory !== 'undefined' ? selectedCategory : '',
+                    selectedStorage: typeof selectedStorage !== 'undefined' ? selectedStorage : '',
+                    selectedExpiry: typeof selectedExpiry !== 'undefined' ? selectedExpiry : '',
+                    selectedSort: typeof selectedSort !== 'undefined' ? selectedSort : ''
+                }) %>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-5">
 
             <div class="col-md-6 col-lg-3">
                 <div class="card shadow-sm h-100">
