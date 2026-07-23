@@ -246,7 +246,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             LIMIT 1
         `);
 
-        res.render('manage-inventory', {
+        res.render('manageInventory', {
             user: req.session.user,
             staff: req.session.user,
             stats: {
