@@ -13,8 +13,13 @@
                 <a class="nav-tab" data-path="/board" href="/board">Admin Dashboard</a>
                 <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">Inventory Board</a>
             <% } %>
-            <a class="nav-tab" data-path="/profile" href="/profile">Profile</a>
-            <a class="nav-tab" href="/logout">Logout</a>
+            <a class="nav-avatar" href="/profile" title="Profile">
+                <% if (user.profilePicture) { %>
+                    <img src="/images/<%= user.profilePicture %>" alt="Profile" class="nav-avatar-img">
+                <% } else { %>
+                    <span class="nav-avatar-fallback"><%= user.fullName.charAt(0).toUpperCase() %></span>
+                <% } %>
+            </a>
         <% } else { %>
             <a class="nav-tab" data-path="/register" href="/register">Register</a>
             <a class="nav-tab" data-path="/login" href="/login">Login</a>
