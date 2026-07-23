@@ -79,6 +79,16 @@ res.redirect('/dashboard');
 }
 };
 
+// Check if user is a chef - gates the chef dashboard away from managers/superadmin (Jun Yuan)
+const checkChef = (req, res, next) => {
+if (req.session.user && req.session.user.role === 'Chef') {
+return next();
+} else {
+req.flash('error', 'The dashboard is for chef accounts. Use the admin board instead.');
+res.redirect('/admin');
+}
+};
+
 // Alias so the existing /dashboard route (which references requireLogin) doesn't crash (Jun Yuan)
 const requireLogin = checkAuthenticated;
 
@@ -207,8 +217,8 @@ app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
-// Inventory board: Good / Close to Expiry / Expired (rizq)
-app.get('/board', checkAuthenticated, (req, res) => {
+// Inventory board: Good / Close to Expiry / Expired - admin/superadmin only (rizq)
+app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
         if (err) {
             console.error('Board error:', err);
@@ -253,8 +263,8 @@ req.session.destroy();
 res.redirect('/');
 });
 
-// Dashboard route (Tassie)
-app.get('/dashboard', requireLogin, async (req, res) => {
+// Dashboard route - chef only (Tassie)
+app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
     try {
         const [totalResults] = await db.promise().query(`
             SELECT COUNT(*) AS totalIngredients
