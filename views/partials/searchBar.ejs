@@ -1,0 +1,15 @@
+<%# Search bar for Pantry - name search only (Member 5) %>
+
+<div class="card h-100">
+  <h3>Search</h3>
+  <form action="/search" method="GET" class="filter-bar" style="flex-direction: row;">
+    <input
+      type="text"
+      name="search"
+      placeholder="Search ingredient..."
+      value="<%= typeof search !== 'undefined' ? search : '' %>"
+      style="flex: 1;"
+    >
+    <button type="submit">Search</button>
+  </form>
+</div>

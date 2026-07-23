@@ -24,6 +24,24 @@
             Monitor ingredient stock levels and expiry dates.
         </p>
 
+        <!-- //Tara - Search and Filter Components -->
+        <div class="row g-3 mb-5">
+            <div class="col-md-6">
+                <%- include('partials/searchBar', { search: typeof search !== 'undefined' ? search : '' }) %>
+            </div>
+            <div class="col-md-6">
+                <%- include('partials/filterOnly', {
+                    categories: typeof categories !== 'undefined' ? categories : [],
+                    storageOptions: typeof storageOptions !== 'undefined' ? storageOptions : [],
+                    selectedCategory: typeof selectedCategory !== 'undefined' ? selectedCategory : '',
+                    selectedStorage: typeof selectedStorage !== 'undefined' ? selectedStorage : '',
+                    selectedExpiry: typeof selectedExpiry !== 'undefined' ? selectedExpiry : '',
+                    selectedSort: typeof selectedSort !== 'undefined' ? selectedSort : ''
+                }) %>
+            </div>
+        </div>
+
+        <!-- //Tassie - Dashboard Statistics -->
         <div class="row g-3 mb-5">
 
             <div class="col-md-6 col-lg-3">
@@ -64,6 +82,7 @@
 
         </div>
 
+        <!-- //Tassie - Low Stock Ingredients Table -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h4 class="mb-0">Low-Stock Ingredients</h4>
@@ -110,6 +129,7 @@
             </div>
         </div>
 
+        <!-- //Tassie - Expired Ingredients Table -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h4 class="mb-0">Expired Ingredients</h4>
@@ -151,6 +171,7 @@
             </div>
         </div>
 
+        <!-- //Tassie - Expiring Soon Ingredients Table -->
         <div class="card shadow-sm mb-4">
             <div class="card-header">
                 <h4 class="mb-0">Expiring Within 7 Days</h4>
