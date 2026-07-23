@@ -169,6 +169,10 @@ errors: req.flash('error')
 
 // User login route (Jun Yuan)
 // NOTE: the DB table is `staff` (not `users`).
+// Accounts lock after MAX_LOGIN_ATTEMPTS consecutive failed password attempts (staff.failedAttempts / staff.isLocked).
+// A SuperAdmin can unlock an account again from the /user-management page.
+const MAX_LOGIN_ATTEMPTS = 5;
+
 app.post('/login', (req, res) => {
 const { email, password } = req.body;
 // Validate email and password
@@ -176,16 +180,47 @@ if (!email || !password) {
 req.flash('error', 'All fields are required.');
 return res.redirect('/login');
 }
-const sql = 'SELECT * FROM staff WHERE email = ? AND password = SHA1(?)';
-db.query(sql, [email, password], (err, results) => {
+
+// Look up the account by email first (separately from the password) so we can
+// check its lock status and track failed attempts before deciding if the
+// password matches.
+const sql = 'SELECT * FROM staff WHERE email = ?';
+db.query(sql, [email], (err, results) => {
 if (err) {
 console.error('Login error:', err);
 req.flash('error', 'Something went wrong while logging in. Please try again.');
 return res.redirect('/login');
 }
-if (results.length > 0) {
-// Successful login
+
+if (results.length === 0) {
+req.flash('error', 'Invalid email or password.');
+return res.redirect('/login');
+}
+
 const staffMember = results[0];
+
+if (staffMember.isLocked) {
+req.flash('error', 'This account has been locked after too many failed login attempts. Ask a SuperAdmin to reactivate it.');
+return res.redirect('/login');
+}
+
+const checkPasswordSql = 'SELECT staffId FROM staff WHERE staffId = ? AND password = SHA1(?)';
+db.query(checkPasswordSql, [staffMember.staffId, password], (err2, matchResults) => {
+if (err2) {
+console.error('Login error:', err2);
+req.flash('error', 'Something went wrong while logging in. Please try again.');
+return res.redirect('/login');
+}
+
+if (matchResults.length > 0) {
+// Correct password - reset the failed-attempt counter and log the user in.
+db.query('UPDATE staff SET failedAttempts = 0 WHERE staffId = ?', [staffMember.staffId], (err3) => {
+if (err3) {
+console.error('Failed to reset login attempts:', err3);
+}
+});
+
+staffMember.failedAttempts = 0;
 req.session.user = staffMember; // store user in session
 req.flash('success', 'Login successful!');
 // Route to the page that matches the account's role
@@ -197,10 +232,28 @@ res.redirect('/admin');
 res.redirect('/dashboard');
 }
 } else {
-// Invalid credentials
+// Wrong password - increment the failed-attempt counter, locking the account if it hits the limit.
+const newAttempts = staffMember.failedAttempts + 1;
+
+if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+db.query('UPDATE staff SET failedAttempts = ?, isLocked = TRUE WHERE staffId = ?', [newAttempts, staffMember.staffId], (err4) => {
+if (err4) {
+console.error('Failed to lock account:', err4);
+}
+});
+req.flash('error', 'Too many failed attempts. This account has been locked. Ask a SuperAdmin to reactivate it.');
+} else {
+db.query('UPDATE staff SET failedAttempts = ? WHERE staffId = ?', [newAttempts, staffMember.staffId], (err4) => {
+if (err4) {
+console.error('Failed to update login attempts:', err4);
+}
+});
 req.flash('error', 'Invalid email or password.');
+}
+
 res.redirect('/login');
 }
+});
 });
 });
 
@@ -208,6 +261,38 @@ res.redirect('/login');
 // Manager and SuperAdmin both land on the same admin homepage.
 app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
+});
+
+// User Management: view every staff account and reactivate locked ones - SuperAdmin only (Jun Yuan)
+app.get('/user-management', checkAuthenticated, checkSuperAdmin, (req, res) => {
+    const sql = 'SELECT staffId, fullName, email, role, failedAttempts, isLocked FROM staff ORDER BY fullName ASC';
+    db.query(sql, (err, staffList) => {
+        if (err) {
+            console.error('User management error:', err);
+            req.flash('error', 'Could not load the staff list. Please try again.');
+            return res.redirect('/');
+        }
+        res.render('userManagement', {
+            user: req.session.user,
+            staffList,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
+        });
+    });
+});
+
+app.post('/user-management/:id/reactivate', checkAuthenticated, checkSuperAdmin, (req, res) => {
+    const staffId = req.params.id;
+    const sql = 'UPDATE staff SET isLocked = FALSE, failedAttempts = 0 WHERE staffId = ?';
+    db.query(sql, [staffId], (err) => {
+        if (err) {
+            console.error('Reactivate account error:', err);
+            req.flash('error', 'Could not reactivate that account. Please try again.');
+            return res.redirect('/user-management');
+        }
+        req.flash('success', 'Account reactivated.');
+        res.redirect('/user-management');
+    });
 });
 
 // Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only(Tassie))
