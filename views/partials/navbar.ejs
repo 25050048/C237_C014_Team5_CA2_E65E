@@ -1,4 +1,3 @@
-<link rel="stylesheet" href="/style.css">
 <nav class="site-navbar">
     <a class="navbar-brand-plain" href="/">Pantry</a>
     <div class="navbar-links">
@@ -7,17 +6,10 @@
             <% if (user.role === 'Chef') { %>
                 <a class="nav-tab" data-path="/dashboard" href="/dashboard">Dashboard</a>
             <% } else { %>
-<<<<<<< HEAD
                 <% if (user.role === 'SuperAdmin') { %>
                     <a class="nav-tab" data-path="/register-manager" href="/register-manager">Register Manager</a>
                 <% } %>
                 <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">Inventory Board</a>
-=======
-                <a class="nav-tab" data-path="/admin" href="/admin">Admin Dashboard</a>
-            <% } %>
-            <% if (user.isSuperAdmin) { %>
-                <a class="nav-tab" data-path="/register-manager" href="/register-manager">Register Manager</a>
->>>>>>> 00bdcf67f07114982d30308a451de005bdb8208a
             <% } %>
             <a class="nav-tab" href="/logout">Logout</a>
         <% } else { %>

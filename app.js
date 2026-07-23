@@ -10,7 +10,7 @@ const db = mysql.createConnection({
     user: 'c237_014',
     password: 'c237014@2026!',
     database: 'c237_014_team5_ca2',
-    ssl: {rejectUnauthorized: false}
+    ssl: {rejectUnauthorized: false} 
 });
 db.connect((err) => {
     if (err) {
@@ -51,7 +51,7 @@ res.redirect('/login');
 
 //  Check if user is manager or superadmin. (Jun Yuan)
 const checkManager = (req, res, next) => {
-if (req.session.user.role === 'Manager' || req.session.user.role === 'SuperAdmin') {
+if (req.session.user.role === 'manager' || req.session.user.role === 'superadmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -60,23 +60,12 @@ res.redirect('/dashboard');
 };
 
 // Check if user is superadmin only - gates the register-admin page (Jun Yuan)
-// staff.role in the DB is ENUM('Chef','Manager','SuperAdmin').
 const checkSuperAdmin = (req, res, next) => {
-if (req.session.user && req.session.user.role === 'SuperAdmin') {
+if (req.session.user && req.session.user.role === 'superadmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
 res.redirect('/dashboard');
-}
-};
-
-// Check if user is a chef - gates the chef dashboard away from managers/superadmin (Jun Yuan)
-const checkChef = (req, res, next) => {
-if (req.session.user && req.session.user.role === 'Chef') {
-return next();
-} else {
-req.flash('error', 'The dashboard is for chef accounts. Use the admin board instead.');
-res.redirect('/admin');
 }
 };
 
@@ -103,18 +92,17 @@ req.flash('error', 'Password should be at least 6 or more characters long');
 req.flash('formData', req.body);
 return res.redirect('/register');
 }
-// If all validations pass, proceed to the next middleware or route handler
+// If all validations pass, proceed to the next middleware or route handler 
 next();
 };
 
 // Register route with validateRegistration middleware integrated (Jun Yuan)
-// Role is never read from the form - public registration always creates a 'Chef' account.
-// NOTE: the DB table is `staff` (not `users`), and its name column is `fullName`.
+// Role is never read from the form - public registration always creates a 'chef' account.
 app.post('/register', validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
-    const role = 'Chef';
+    const role = 'chef';
 
-    const sql = 'INSERT INTO staff (fullName, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
     db.query(sql, [fullname, email, password, role], (err, result) => {
         if (err) {
             console.error('Register error:', err);
@@ -139,18 +127,12 @@ app.get('/register-manager', checkAuthenticated, checkSuperAdmin, (req, res) => 
 
 app.post('/register-manager', checkAuthenticated, checkSuperAdmin, validateRegistration, (req, res) => {
     const { fullname, email, password } = req.body;
-    const role = 'Manager';
+    const role = 'manager';
 
-    const sql = 'INSERT INTO staff (fullName, email, password, role) VALUES (?, ?, SHA1(?), ?)';
+    const sql = 'INSERT INTO users (fullname, email, password, role) VALUES (?, ?, SHA1(?), ?)';
     db.query(sql, [fullname, email, password, role], (err, result) => {
         if (err) {
-            console.error('Register-manager error:', err);
-            const message = err.code === 'ER_DUP_ENTRY'
-                ? 'That email is already registered.'
-                : 'Something went wrong while creating the account. Please try again.';
-            req.flash('error', message);
-            req.flash('formData', req.body);
-            return res.redirect('/register-manager');
+            throw err;
         }
         req.flash('success', 'Manager account created.');
         res.redirect('/admin');
@@ -168,7 +150,6 @@ errors: req.flash('error')
 });
 
 // User login route (Jun Yuan)
-// NOTE: the DB table is `staff` (not `users`).
 app.post('/login', (req, res) => {
 const { email, password } = req.body;
 // Validate email and password
@@ -176,26 +157,23 @@ if (!email || !password) {
 req.flash('error', 'All fields are required.');
 return res.redirect('/login');
 }
-const sql = 'SELECT * FROM staff WHERE email = ? AND password = SHA1(?)';
+const sql = 'SELECT * FROM users WHERE email = ? AND password = SHA1(?)';
 db.query(sql, [email, password], (err, results) => {
 if (err) {
-console.error('Login error:', err);
-req.flash('error', 'Something went wrong while logging in. Please try again.');
-return res.redirect('/login');
+throw err;
 }
 if (results.length > 0) {
 // Successful login
-const staffMember = results[0];
-req.session.user = staffMember; // store user in session
+req.session.user = results[0]; // store user in session
 req.flash('success', 'Login successful!');
 // Route to the dashboard that matches the account's role
-if (staffMember.role === 'Manager' || staffMember.role === 'SuperAdmin') {
+if (results[0].role === 'manager' || results[0].role === 'superadmin') {
 res.redirect('/admin');
 } else {
 res.redirect('/dashboard');
 }
 } else {
-// Invalid credentials
+// Invalid credentials 
 req.flash('error', 'Invalid email or password.');
 res.redirect('/login');
 }
@@ -207,70 +185,11 @@ app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
 });
 
-// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
-app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
-    try {
-        const search = req.query.search || '';
-        const category = req.query.category || '';
-
-        let sql = 'SELECT * FROM ingredients WHERE 1=1';
-        const params = [];
-        if (search) {
-            sql += ' AND (ingredientName LIKE ? OR supplier LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`);
-        }
-        if (category) {
-            sql += ' AND category = ?';
-            params.push(category);
-        }
-        sql += ' ORDER BY ingredientName ASC';
-
-        const [products] = await db.promise().query(sql, params);
-
-        const [[{ totalIngredients }]] = await db.promise().query('SELECT COUNT(*) AS totalIngredients FROM ingredients');
-        const [[{ lowStockCount }]] = await db.promise().query('SELECT COUNT(*) AS lowStockCount FROM ingredients WHERE quantity <= minimumStock');
-        const [[{ expiringSoonCount }]] = await db.promise().query(`
-            SELECT COUNT(*) AS expiringSoonCount
-            FROM ingredients
-            WHERE expiryDate >= CURDATE() AND expiryDate <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-        `);
-        const [mostUsedRows] = await db.promise().query(`
-            SELECT i.ingredientName, SUM(u.quantityUsed) AS totalUsed
-            FROM ingredient_usage u
-            JOIN ingredients i ON i.ingredientId = u.ingredientId
-            GROUP BY u.ingredientId, i.ingredientName
-            ORDER BY totalUsed DESC
-            LIMIT 1
-        `);
-
-        res.render('manageInventory', {
-            user: req.session.user,
-            stats: {
-                totalIngredients,
-                lowStockCount,
-                expiringSoonCount,
-                mostUsedIngredient: mostUsedRows.length > 0 ? mostUsedRows[0].ingredientName : 'N/A'
-            },
-            search,
-            category,
-            products,
-            messages: req.flash('error'),
-            successMessages: req.flash('success')
-        });
-    } catch (error) {
-        console.error('Manage inventory error:', error);
-        req.flash('error', 'Could not load the inventory manager. Please try again.');
-        res.redirect('/admin');
-    }
-});
-
-// Inventory board: Good / Close to Expiry / Expired - admin/superadmin only (rizq)
-app.get('/board', checkAuthenticated, checkManager, (req, res) => {
+// Inventory board: Good / Close to Expiry / Expired (rizq)
+app.get('/board', checkAuthenticated, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
         if (err) {
-            console.error('Board error:', err);
-            req.flash('error', 'Could not load the inventory board. Please try again.');
-            return res.redirect('/dashboard');
+            throw err;
         }
 
         const NEAR_EXPIRY_DAYS = 7;
@@ -310,15 +229,15 @@ req.session.destroy();
 res.redirect('/');
 });
 
-// Dashboard route - chef only (Tassie)
-app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
+// Dashboard route (Tassie)
+app.get('/dashboard', requireLogin, async (req, res) => {
     try {
-        const [totalResults] = await db.promise().query(`
+        const [totalResults] = await db.query(`
             SELECT COUNT(*) AS totalIngredients
             FROM ingredients
         `);
 
-        const [lowStockIngredients] = await db.promise().query(`
+        const [lowStockIngredients] = await db.query(`
             SELECT
                 ingredientId,
                 ingredientName,
@@ -331,7 +250,7 @@ app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
             ORDER BY quantity ASC
         `);
 
-        const [expiredIngredients] = await db.promise().query(`
+        const [expiredIngredients] = await db.query(`
             SELECT
                 ingredientId,
                 ingredientName,
@@ -344,7 +263,7 @@ app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
             ORDER BY expiryDate ASC
         `);
 
-        const [expiringSoonIngredients] = await db.promise().query(`
+        const [expiringSoonIngredients] = await db.query(`
             SELECT
                 ingredientId,
                 ingredientName,
