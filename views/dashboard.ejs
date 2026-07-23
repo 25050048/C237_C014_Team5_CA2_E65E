@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Kitchen Operations Dashboard</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body class="bg-light">
+
+    <%- include('partials/navbar') %>
+
+    <main class="container py-4">
+
+        <% if (
+            typeof successMessages !== 'undefined' &&
+            successMessages &&
+            successMessages.length
+        ) { %>
+
+            <% successMessages.forEach(message => { %>
+
+                <div class="alert alert-success">
+                    <%= message %>
+                </div>
+
+            <% }) %>
+
+        <% } %>
+
+        <% if (
+            typeof errorMessages !== 'undefined' &&
+            errorMessages &&
+            errorMessages.length
+        ) { %>
+
+            <% errorMessages.forEach(message => { %>
+
+                <div class="alert alert-danger">
+                    <%= message %>
+                </div>
+
+            <% }) %>
+
+        <% } %>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+
+            <div>
+                <h1 class="mb-1">Kitchen Operations</h1>
+
+                <p class="text-muted mb-0">
+                    Welcome back,
+                    <%= user.fullName || user.username || 'Chef' %>.
+                    Here is what is happening in the kitchen today.
+                </p>
+            </div>
+
+            <div class="text-end">
+                <strong>Today</strong>
+                <div id="currentDate" class="text-muted"></div>
+            </div>
+
+        </div>
+
+        <div class="row g-4 mb-4">
+
+            <!-- TODAY'S TASKS -->
+            <div class="col-lg-4">
+
+                <div class="card h-100">
+
+                    <div class="card-header d-flex justify-content-between align-items-center">
+
+                        <h5 class="mb-0">
+                            Today's Tasks
+                        </h5>
+
+                        <button
+                            type="button"
+                            class="btn btn-success btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#newTaskModal"
+                        >
+                            + Add Task
+                        </button>
+
+                    </div>
+
+                    <div class="card-body p-0">
+
+                        <% if (
+                            kitchenTasks &&
+                            kitchenTasks.length > 0
+                        ) { %>
+
+                            <ul class="list-group list-group-flush">
+
+                                <% kitchenTasks.forEach(task => { %>
+
+                                    <li class="list-group-item">
+
+                                        <div class="d-flex justify-content-between align-items-center gap-3">
+
+                                            <div>
+
+                                                <div class="<%= task.status === 'Completed' ? 'text-decoration-line-through text-muted' : '' %>">
+                                                    <%= task.taskName %>
+                                                </div>
+
+                                                <% if (task.assignedTo) { %>
+
+                                                    <small class="text-muted">
+                                                        Assigned to:
+                                                        <%= task.assignedTo %>
+                                                    </small>
+
+                                                <% } %>
+
+                                            </div>
+
+                                            <div class="d-flex flex-column align-items-end gap-2">
+
+    <span
+        class="badge <%= task.status === 'Completed'
+            ? 'bg-success'
+            : 'bg-warning text-dark'
+        %>"
+    >
+        <%= task.status %>
+    </span>
+
+    <div class="d-flex flex-wrap justify-content-end gap-1">
+
+        <!-- COMPLETE / UNDO -->
+        <form
+            method="POST"
+            action="/kitchen-tasks/<%= task.taskId %>/toggle"
+        >
+            <button
+                type="submit"
+                class="btn btn-sm btn-outline-secondary"
+            >
+                <%= task.status === 'Completed'
+                    ? 'Undo'
+                    : 'Complete'
+                %>
+            </button>
+        </form>
+
+        <!-- EDIT -->
+        <button
+            type="button"
+            class="btn btn-sm btn-outline-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#editTaskModal<%= task.taskId %>"
+        >
+            Edit
+        </button>
+
+        <!-- DELETE -->
+        <form
+            method="POST"
+            action="/kitchen-tasks/<%= task.taskId %>/delete"
+            onsubmit="return confirm('Are you sure you want to delete this kitchen task?');"
+        >
+            <button
+                type="submit"
+                class="btn btn-sm btn-outline-danger"
+            >
+                Delete
+            </button>
+        </form>
+
+    </div>
+
+</div>
+
+                                        </div>
+
+                                    </li>
+
+                                <% }) %>
+
+                            </ul>
+
+                        <% } else { %>
+
+                            <p class="text-muted p-3 mb-0">
+                                No kitchen tasks have been added.
+                            </p>
+
+                        <% } %>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- EXPIRY MANAGEMENT -->
+            <div class="col-lg-8">
+
+                <div class="card h-100">
+
+                    <div class="card-header d-flex justify-content-between align-items-center">
+
+                        <h5 class="mb-0">Expiry Management</h5>
+
+                        <a
+                            href="/expirymonitoring"
+                            class="btn btn-sm btn-outline-primary"
+                        >
+                            View Full Monitoring
+                        </a>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+                            <!-- EXPIRED -->
+                            <div class="col-md-4">
+
+                                <div class="border rounded h-100">
+
+                                    <div class="p-3 bg-danger-subtle">
+                                        <h6 class="text-danger mb-1">
+                                            Expired
+                                        </h6>
+
+                                        <h3 class="mb-0">
+                                            <%= expiredCount %>
+                                        </h3>
+                                    </div>
+
+                                    <% if (
+                                        expiredIngredients.length > 0
+                                    ) { %>
+
+                                        <ul class="list-group list-group-flush">
+
+                                            <% expiredIngredients.forEach(item => { %>
+
+                                                <li class="list-group-item">
+
+                                                    <div class="d-flex justify-content-between gap-2">
+
+                                                        <span>
+                                                            <%= item.ingredientName %>
+                                                        </span>
+
+                                                        <small class="text-danger">
+                                                            <%= item.daysExpired %>
+                                                            day(s) ago
+                                                        </small>
+
+                                                    </div>
+
+                                                </li>
+
+                                            <% }) %>
+
+                                        </ul>
+
+                                    <% } else { %>
+
+                                        <p class="text-muted p-3 mb-0">
+                                            No expired ingredients.
+                                        </p>
+
+                                    <% } %>
+
+                                </div>
+
+                            </div>
+
+                            <!-- EXPIRING TODAY -->
+                            <div class="col-md-4">
+
+                                <div class="border rounded h-100">
+
+                                    <div class="p-3 bg-warning-subtle">
+                                        <h6 class="text-warning-emphasis mb-1">
+                                            Expiring Today
+                                        </h6>
+
+                                        <h3 class="mb-0">
+                                            <%= expiringTodayCount %>
+                                        </h3>
+                                    </div>
+
+                                    <% if (
+                                        expiringTodayIngredients.length > 0
+                                    ) { %>
+
+                                        <ul class="list-group list-group-flush">
+
+                                            <% expiringTodayIngredients.forEach(item => { %>
+
+                                                <li class="list-group-item">
+
+                                                    <div class="d-flex justify-content-between gap-2">
+
+                                                        <span>
+                                                            <%= item.ingredientName %>
+                                                        </span>
+
+                                                        <small class="text-warning-emphasis">
+                                                            Expires today
+                                                        </small>
+
+                                                    </div>
+
+                                                </li>
+
+                                            <% }) %>
+
+                                        </ul>
+
+                                    <% } else { %>
+
+                                        <p class="text-muted p-3 mb-0">
+                                            Nothing expires today.
+                                        </p>
+
+                                    <% } %>
+
+                                </div>
+
+                            </div>
+
+                            <!-- EXPIRING SOON -->
+                            <div class="col-md-4">
+
+                                <div class="border rounded h-100">
+
+                                    <div class="p-3 bg-primary-subtle">
+                                        <h6 class="text-primary mb-1">
+                                            Expiring Soon
+                                        </h6>
+
+                                        <h3 class="mb-0">
+                                            <%= expiringSoonCount %>
+                                        </h3>
+                                    </div>
+
+                                    <% if (
+                                        expiringSoonIngredients.length > 0
+                                    ) { %>
+
+                                        <ul class="list-group list-group-flush">
+
+                                            <% expiringSoonIngredients.forEach(item => { %>
+
+                                                <li class="list-group-item">
+
+                                                    <div class="d-flex justify-content-between gap-2">
+
+                                                        <span>
+                                                            <%= item.ingredientName %>
+                                                        </span>
+
+                                                        <small class="text-primary">
+                                                            In
+                                                            <%= item.daysRemaining %>
+                                                            day(s)
+                                                        </small>
+
+                                                    </div>
+
+                                                </li>
+
+                                            <% }) %>
+
+                                        </ul>
+
+                                    <% } else { %>
+
+                                        <p class="text-muted p-3 mb-0">
+                                            Nothing is expiring soon.
+                                        </p>
+
+                                    <% } %>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="row g-4">
+
+            <!-- KITCHEN ALERTS -->
+            <div class="col-lg-4">
+
+                <div class="card h-100">
+
+                    <div class="card-header">
+                        <h5 class="mb-0">Kitchen Alerts</h5>
+                    </div>
+
+                    <div class="card-body p-0">
+
+                        <% if (
+                            kitchenAlerts &&
+                            kitchenAlerts.length > 0
+                        ) { %>
+
+                            <ul class="list-group list-group-flush">
+
+                                <% kitchenAlerts.forEach(alert => { %>
+
+                                    <li class="list-group-item">
+
+                                        <div
+                                            class="alert mb-0 <%= alert.type === 'danger'
+                                                ? 'alert-danger'
+                                                : alert.type === 'warning'
+                                                    ? 'alert-warning'
+                                                    : 'alert-info'
+                                            %>"
+                                        >
+                                            <%= alert.message %>
+                                        </div>
+
+                                    </li>
+
+                                <% }) %>
+
+                            </ul>
+
+                        <% } else { %>
+
+                            <p class="text-muted p-3 mb-0">
+                                There are no kitchen alerts.
+                            </p>
+
+                        <% } %>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- EXPIRATION STOCK REQUESTS -->
+            <div class="col-lg-8">
+
+                <div class="card h-100">
+
+                    <div class="card-header d-flex justify-content-between align-items-center">
+
+                        <div>
+                            <h5 class="mb-0">
+                                Expiration Stock Requests
+                            </h5>
+
+                            <small class="text-muted">
+                                Request replacement stock for expired
+                                or expiring ingredients
+                            </small>
+                        </div>
+
+                        <div class="d-flex gap-2">
+
+                            <a
+                                href="/expiryrequests/new"
+                                class="btn btn-success btn-sm"
+                            >
+                                New Stock Request
+                            </a>
+
+                            <a
+                                href="/expiryrequests"
+                                class="btn btn-outline-secondary btn-sm"
+                            >
+                                View All Requests
+                            </a>
+
+                        </div>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        <% if (
+                            recentRequests &&
+                            recentRequests.length > 0
+                        ) { %>
+
+                            <div class="table-responsive">
+
+                                <table class="table table-striped table-hover align-middle">
+
+                                    <thead>
+                                        <tr>
+                                            <th>Request ID</th>
+                                            <th>Ingredient</th>
+                                            <th>Request Type</th>
+                                            <th>Quantity</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                            <th>Requested By</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+
+                                        <% recentRequests.forEach(request => { %>
+
+                                            <tr>
+                                                <td>
+                                                    REQ-<%= request.requestId %>
+                                                </td>
+
+                                                <td>
+                                                    <%= request.ingredientName %>
+                                                </td>
+
+                                                <td>
+                                                    <%= request.requestType %>
+                                                </td>
+
+                                                <td>
+                                                    <%= request.requestedQuantity %>
+                                                    <%= request.unit || '' %>
+                                                </td>
+
+                                                <td>
+                                                    <span
+                                                        class="badge <%= request.priority === 'Urgent'
+                                                            ? 'bg-danger'
+                                                            : request.priority === 'High'
+                                                                ? 'bg-warning text-dark'
+                                                                : 'bg-secondary'
+                                                        %>"
+                                                    >
+                                                        <%= request.priority %>
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    <span class="badge bg-secondary">
+                                                        <%= request.status %>
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    <%= request.requestedBy %>
+                                                </td>
+                                            </tr>
+
+                                        <% }) %>
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                        <% } else { %>
+
+                            <p class="text-muted mb-0">
+                                No expiration stock requests have been submitted.
+                            </p>
+
+                        <% } %>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- EDIT KITCHEN TASK MODALS -->
+    <% if (kitchenTasks && kitchenTasks.length > 0) { %>
+        <% kitchenTasks.forEach(task => { %>
+
+            <div
+                class="modal fade"
+                id="editTaskModal<%= task.taskId %>"
+                tabindex="-1"
+                aria-labelledby="editTaskModalLabel<%= task.taskId %>"
+                aria-hidden="true"
+            >
+                <div class="modal-dialog modal-dialog-centered">
+
+                    <div class="modal-content">
+
+                        <form
+                            method="POST"
+                            action="/kitchen-tasks/<%= task.taskId %>/edit"
+                        >
+
+                            <div class="modal-header">
+
+                                <div>
+                                    <h5
+                                        class="modal-title"
+                                        id="editTaskModalLabel<%= task.taskId %>"
+                                    >
+                                        Edit Kitchen Task
+                                    </h5>
+
+                                    <small class="text-muted">
+                                        Update the task details below
+                                    </small>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Close"
+                                ></button>
+
+                            </div>
+
+                            <div class="modal-body">
+
+                                <div class="mb-3">
+
+                                    <label
+                                        for="editTaskName<%= task.taskId %>"
+                                        class="form-label"
+                                    >
+                                        Task Name
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="editTaskName<%= task.taskId %>"
+                                        name="taskName"
+                                        class="form-control"
+                                        value="<%= task.taskName %>"
+                                        maxlength="255"
+                                        required
+                                    >
+
+                                </div>
+
+                                <div class="mb-3">
+
+                                    <label
+                                        for="editTaskDate<%= task.taskId %>"
+                                        class="form-label"
+                                    >
+                                        Task Date
+                                    </label>
+
+                                    <input
+                                        type="date"
+                                        id="editTaskDate<%= task.taskId %>"
+                                        name="taskDate"
+                                        class="form-control"
+                                        value="<%= task.taskDate ? new Date(task.taskDate).toISOString().split('T')[0] : '' %>"
+                                        required
+                                    >
+
+                                </div>
+
+                                <div class="mb-3">
+
+                                    <label
+                                        for="editAssignedTo<%= task.taskId %>"
+                                        class="form-label"
+                                    >
+                                        Assigned To
+                                    </label>
+
+                                    <input
+                                        type="text"
+                                        id="editAssignedTo<%= task.taskId %>"
+                                        name="assignedTo"
+                                        class="form-control"
+                                        value="<%= task.assignedTo || '' %>"
+                                        required
+                                    >
+
+                                </div>
+
+                            </div>
+
+                            <div class="modal-footer">
+
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary"
+                                    data-bs-dismiss="modal"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-primary"
+                                >
+                                    Save Changes
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    </div>
+
+                </div>
+            </div>
+
+        <% }) %>
+    <% } %>
+
+    <!-- NEW KITCHEN TASK MODAL -->
+<div
+    class="modal fade"
+    id="newTaskModal"
+    tabindex="-1"
+    aria-labelledby="newTaskModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content">
+
+            <form
+                method="POST"
+                action="/kitchen-tasks"
+            >
+
+                <div class="modal-header">
+
+                    <div>
+                        <h5
+                            class="modal-title"
+                            id="newTaskModalLabel"
+                        >
+                            Create Kitchen Task
+                        </h5>
+
+                        <small class="text-muted">
+                            Add a task to the kitchen operations list
+                        </small>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                    ></button>
+
+                </div>
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+
+                        <label
+                            for="taskName"
+                            class="form-label"
+                        >
+                            Task Name
+                        </label>
+
+                        <input
+                            type="text"
+                            id="taskName"
+                            name="taskName"
+                            class="form-control"
+                            placeholder="Example: Check refrigerator temperature"
+                            maxlength="255"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label
+                            for="taskDate"
+                            class="form-label"
+                        >
+                            Task Date
+                        </label>
+
+                        <input
+                            type="date"
+                            id="taskDate"
+                            name="taskDate"
+                            class="form-control"
+                            required
+                        >
+
+                        <small class="text-muted">
+                            Tasks dated today will appear on this dashboard.
+                        </small>
+
+                    </div>
+
+                    <div class="alert alert-info mb-0">
+                        This task will be assigned automatically to
+                        <strong>
+                            <%= user.fullName || user.username || 'the logged-in chef' %>
+                        </strong>.
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-dismiss="modal"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn btn-success"
+                    >
+                        Create Task
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const today = new Date();
+
+    document.getElementById('currentDate').textContent =
+        today.toLocaleDateString('en-SG', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+            weekday: 'long'
+        });
+
+    const taskDateInput =
+        document.getElementById('taskDate');
+
+    if (taskDateInput) {
+        const year = today.getFullYear();
+
+        const month = String(
+            today.getMonth() + 1
+        ).padStart(2, '0');
+
+        const day = String(
+            today.getDate()
+        ).padStart(2, '0');
+
+        taskDateInput.value =
+            `${year}-${month}-${day}`;
+    }
+</script>
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+></script>
+</body>
+
+</html>
