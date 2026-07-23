@@ -529,17 +529,19 @@ app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
         );
 
         res.render('dashboard', {
-            user: req.session.user || null,
-            totalIngredients: totalResults[0].totalIngredients,
-            lowStockCount: lowStockIngredients.length,
-            expiredCount: expiredIngredients.length,
-            expiringSoonCount: expiringSoonIngredients.length,
-            lowStockIngredients,
-            expiredIngredients,
-            expiringSoonIngredients,
-            categories: categoryRows.map(r => r.category),
-            storageOptions: storageRows.map(r => r.storageLocation)
-        });
+    user: req.session.user || null,
+    totalIngredients: totalResults[0].totalIngredients,
+    lowStockCount: lowStockIngredients.length,
+    expiredCount: expiredIngredients.length,
+    expiringSoonCount: expiringSoonIngredients.length,
+    lowStockIngredients,
+    expiredIngredients,
+    expiringSoonIngredients,
+    kitchenTasks: [],
+    stockRequests: [],
+    categories: categoryRows.map(r => r.category),
+    storageOptions: storageRows.map(r => r.storageLocation)
+});
 
     } catch (error) {
         console.error('Dashboard error:', error);
