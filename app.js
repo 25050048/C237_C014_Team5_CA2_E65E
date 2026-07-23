@@ -268,7 +268,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
-// Inventory board: Good / Close to Expiry / Expired - admin/superadmin only (rizq)
+// Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
 app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
         if (err) {
@@ -277,36 +277,70 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
             return res.redirect('/dashboard');
         }
 
-        const NEAR_EXPIRY_DAYS = 7;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const goodItems = [];
-        const nearExpiryItems = [];
-        const expiredItems = [];
-
-        results.forEach((item) => {
+        // Total ingredients available = sum of quantity across everything NOT expired.
+        const totalAvailable = results.reduce((sum, item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
-            const daysUntilExpiry = Math.round((expiry - today) / (1000 * 60 * 60 * 24));
-            item.daysUntilExpiry = daysUntilExpiry;
+            const isExpired = expiry < today;
+            return isExpired ? sum : sum + item.quantity;
+        }, 0);
 
-            if (daysUntilExpiry < 0) {
-                expiredItems.push(item);
-            } else if (daysUntilExpiry <= NEAR_EXPIRY_DAYS) {
-                nearExpiryItems.push(item);
-            } else if (item.quantity > item.minimumStock) {
-                goodItems.push(item);
+        // Below: counted by number of ingredients (unique ingredientId rows),
+        // NOT by summing quantity — each ingredient counts as 1, regardless of how much stock it has.
+        const expiredCount = results.filter((item) => {
+            const expiry = new Date(item.expiryDate);
+            expiry.setHours(0, 0, 0, 0);
+            return expiry < today;
+        }).length;
+
+        const lowStockCount = results.filter((item) => item.quantity <= item.minimumStock).length;
+
+        // Expired ingredients = food waste. Grab their quantity/unit for the waste bar chart. (rizq)
+        const foodWasteItems = results
+            .filter((item) => {
+                const expiry = new Date(item.expiryDate);
+                expiry.setHours(0, 0, 0, 0);
+                return expiry < today;
+            })
+            .map((item) => ({
+                ingredientName: item.ingredientName,
+                quantity: Number(item.quantity) || 0,
+                unit: item.unit || ''
+            }))
+            .sort((a, b) => b.quantity - a.quantity);
+
+        // Most / least used ingredients, based on all recorded ingredient usage.
+        req.db.query(`
+            SELECT i.ingredientName, COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
+            FROM ingredients i
+            LEFT JOIN ingredient_usage u ON u.ingredientId = i.ingredientId
+            GROUP BY i.ingredientId, i.ingredientName
+            ORDER BY totalUsed DESC
+        `, (usageErr, usageRows) => {
+            if (usageErr) {
+                console.error('Board usage error:', usageErr);
+                req.flash('error', 'Could not load ingredient usage stats. Please try again.');
+                return res.redirect('/dashboard');
             }
+            //rizq
+            const usedRows = usageRows.filter((row) => row.totalUsed > 0);
+
+            const mostUsedIngredients = usedRows.slice(0, 5);
+            const leastUsedIngredients = [...usedRows].reverse().slice(0, 5);
+
+            res.render('board', {
+                user: req.session.user,
+                totalAvailable,
+                expiredCount,
+                lowStockCount,
+                foodWasteItems,
+                mostUsedIngredients,
+                leastUsedIngredients
+            });
         });
-
-        goodItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
-        nearExpiryItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
-        expiredItems.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
-
-        res.render('board', { user: req.session.user, goodItems, nearExpiryItems, expiredItems });
-    });
-});
 
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
