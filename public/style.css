@@ -256,3 +256,360 @@
     border-radius: 10px;
     font-size: 0.9rem;
 }
+
+/* User management page */
+.um-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+}
+
+.um-page h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.um-subtitle {
+    color: #666;
+    font-size: 0.92rem;
+    margin-bottom: 28px;
+}
+
+.um-alert {
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.um-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.um-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.um-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.um-table td {
+    padding: 14px 20px;
+    font-size: 0.92rem;
+    color: #222;
+    border-bottom: 1px solid #f0f0ee;
+}
+
+.um-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.um-table td.muted {
+    color: #888;
+}
+
+.um-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.um-status .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.um-status.active {
+    color: #2f6d3e;
+}
+
+.um-status.active .dot {
+    background: #2f6d3e;
+}
+
+.um-status.locked {
+    color: #a12f2f;
+}
+
+.um-status.locked .dot {
+    background: #a12f2f;
+}
+
+.um-reactivate {
+    border: 1px solid #222;
+    background: #222;
+    color: #fff;
+    border-radius: 10px;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.um-reactivate:hover {
+    background: #000;
+    color: #fff;
+}
+
+.um-dash {
+    color: #ccc;
+}
+
+/* Profile page */
+.pf-page {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+}
+
+.pf-page h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.pf-subtitle {
+    color: #666;
+    font-size: 0.92rem;
+    margin-bottom: 28px;
+}
+
+.pf-alert {
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.pf-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    padding: 28px 32px;
+    margin-bottom: 24px;
+}
+
+.pf-card h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.pf-card-subtitle {
+    color: #888;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+}
+
+.pf-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.pf-avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #f7f7f5;
+    border: 1px solid #eee;
+}
+
+.pf-avatar-fallback {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: #222;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pf-field-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #666;
+    margin-bottom: 3px;
+}
+
+.pf-field-value {
+    font-size: 0.95rem;
+    color: #222;
+    margin-bottom: 16px;
+}
+
+.pf-card .form-control {
+    border-radius: 10px;
+    border: 1px solid #e2e2df;
+    padding: 9px 13px;
+    font-size: 0.92rem;
+}
+
+.pf-card .form-control:focus {
+    border-color: #333;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.06);
+}
+
+.pf-card label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 5px;
+    display: inline-block;
+}
+
+.pf-form-group {
+    margin-bottom: 14px;
+}
+
+.pf-btn {
+    border-radius: 10px;
+    background: #222;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+.pf-btn:hover {
+    background: #000;
+    color: #fff;
+}
+
+.pf-btn-outline {
+    border-radius: 10px;
+    background: transparent;
+    color: #222;
+    border: 1px solid #ccc;
+    padding: 8px 18px;
+    font-size: 0.88rem;
+    font-weight: 500;
+}
+
+/* User management page */
+.um-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+}
+
+.um-page h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.um-subtitle {
+    color: #666;
+    font-size: 0.92rem;
+    margin-bottom: 28px;
+}
+
+.um-alert {
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.um-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.um-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.um-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.um-table td {
+    padding: 14px 20px;
+    font-size: 0.92rem;
+    color: #222;
+    border-bottom: 1px solid #f0f0ee;
+}
+
+.um-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.um-table td.muted {
+    color: #888;
+}
+
+.um-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.um-status .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.um-status.active { color: #2f6d3e; }
+.um-status.active .dot { background: #2f6d3e; }
+.um-status.locked { color: #a12f2f; }
+.um-status.locked .dot { background: #a12f2f; }
+
+.um-reactivate {
+    border: 1px solid #222;
+    background: #222;
+    color: #fff;
+    border-radius: 10px;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.um-reactivate:hover {
+    background: #000;
+    color: #fff;
+}
+
+.um-dash {
+    color: #ccc;
+}

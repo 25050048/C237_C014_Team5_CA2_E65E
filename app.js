@@ -2,7 +2,27 @@ const express = require('express');
 const mysql = require('mysql2');
 const session = require('express-session');
 const flash = require('connect-flash');
+const multer = require('multer');
+const path = require('path');
 const app = express();
+
+// Profile picture uploads - stored in public/images alongside the existing ingredient images (Jun Yuan)
+const profileUpload = multer({
+    storage: multer.diskStorage({
+        destination: path.join(__dirname, 'public', 'images'),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase();
+            cb(null, `profile-${req.session.user.staffId}-${Date.now()}${ext}`);
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const isAllowedExt = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const isAllowedMime = allowedTypes.test(file.mimetype);
+        cb(null, isAllowedExt && isAllowedMime);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 // Database connection
 const db = mysql.createConnection({
@@ -443,6 +463,119 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
 app.get('/logout', (req, res) => {
 req.session.destroy();
 res.redirect('/');
+});
+
+// Profile page - every role can view/edit their own profile (Jun Yuan)
+// Re-fetches the staff row from the DB (rather than trusting the session copy)
+// so the page always shows the latest picture/phone/address/etc.
+app.get('/profile', checkAuthenticated, (req, res) => {
+    const sql = 'SELECT staffId, fullName, email, role, phone, address, profilePicture FROM staff WHERE staffId = ?';
+    db.query(sql, [req.session.user.staffId], (err, results) => {
+        if (err) {
+            console.error('Profile load error:', err);
+            req.flash('error', 'Could not load your profile. Please try again.');
+            return res.redirect('/');
+        }
+        if (results.length === 0) {
+            req.flash('error', 'Your account could not be found.');
+            return res.redirect('/');
+        }
+        res.render('profile', {
+            profile: results[0],
+            user: req.session.user,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
+        });
+    });
+});
+
+// Update the optional contact details (phone/address) (Jun Yuan)
+app.post('/profile/contact', checkAuthenticated, (req, res) => {
+    const phone = (req.body.phone || '').trim() || null;
+    const address = (req.body.address || '').trim() || null;
+
+    const sql = 'UPDATE staff SET phone = ?, address = ? WHERE staffId = ?';
+    db.query(sql, [phone, address, req.session.user.staffId], (err) => {
+        if (err) {
+            console.error('Update contact info error:', err);
+            req.flash('error', 'Could not update your contact details. Please try again.');
+            return res.redirect('/profile');
+        }
+        req.session.user.phone = phone;
+        req.session.user.address = address;
+        req.flash('success', 'Contact details updated.');
+        res.redirect('/profile');
+    });
+});
+
+// Update the profile picture (Jun Yuan)
+app.post('/profile/picture', checkAuthenticated, (req, res) => {
+    profileUpload.single('profilePicture')(req, res, (uploadErr) => {
+        if (uploadErr) {
+            console.error('Profile picture upload error:', uploadErr);
+            req.flash('error', 'Could not upload that file. Please try again.');
+            return res.redirect('/profile');
+        }
+        if (!req.file) {
+            req.flash('error', 'Please choose a JPG, PNG, or GIF image under 5MB.');
+            return res.redirect('/profile');
+        }
+
+        const sql = 'UPDATE staff SET profilePicture = ? WHERE staffId = ?';
+        db.query(sql, [req.file.filename, req.session.user.staffId], (err) => {
+            if (err) {
+                console.error('Update profile picture error:', err);
+                req.flash('error', 'Could not save your new photo. Please try again.');
+                return res.redirect('/profile');
+            }
+            req.session.user.profilePicture = req.file.filename;
+            req.flash('success', 'Profile picture updated.');
+            res.redirect('/profile');
+        });
+    });
+});
+
+// Change password - requires the current password plus the new password entered
+// twice, so a mistyped new password can't silently lock the user out (Jun Yuan)
+app.post('/profile/password', checkAuthenticated, (req, res) => {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        req.flash('error', 'Please fill in all three password fields.');
+        return res.redirect('/profile');
+    }
+    if (newPassword.length < 6) {
+        req.flash('error', 'New password should be at least 6 characters long.');
+        return res.redirect('/profile');
+    }
+    if (newPassword !== confirmPassword) {
+        req.flash('error', 'New password and confirmation do not match.');
+        return res.redirect('/profile');
+    }
+
+    const checkSql = 'SELECT staffId FROM staff WHERE staffId = ? AND password = SHA1(?)';
+    db.query(checkSql, [req.session.user.staffId, currentPassword], (err, results) => {
+        if (err) {
+            console.error('Change password error:', err);
+            req.flash('error', 'Something went wrong. Please try again.');
+            return res.redirect('/profile');
+        }
+        if (results.length === 0) {
+            req.flash('error', 'Current password is incorrect.');
+            return res.redirect('/profile');
+        }
+
+        const updateSql = 'UPDATE staff SET password = SHA1(?) WHERE staffId = ?';
+        db.query(updateSql, [newPassword, req.session.user.staffId], (err2) => {
+            if (err2) {
+                console.error('Change password error:', err2);
+                req.flash('error', 'Could not update your password. Please try again.');
+                return res.redirect('/profile');
+            }
+            req.flash('success', 'Password changed successfully.');
+            res.redirect('/profile');
+        });
+    });
 });
 
 // Dashboard route - chef only (Tassie) with Search/Filter dropdowns (Tara)
