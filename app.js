@@ -19,14 +19,6 @@ db.connect((err) => {
     console.log('Connected to database');
 });
 
-// Hardcoded superadmin override (Jun Yuan)
-// The staff table only has role ENUM('Chef','Manager') - there is no superadmin
-// value in the DB. Add the staff email(s) that should get superadmin access here,
-// e.g. SUPERADMIN_EMAILS = ['michaeltan@restaurant.com'].
-const SUPERADMIN_EMAILS = [
-    // 'youremail@example.com',
-];
-
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static('public'));
 app.use(session({
@@ -59,7 +51,7 @@ res.redirect('/login');
 
 //  Check if user is manager or superadmin. (Jun Yuan)
 const checkManager = (req, res, next) => {
-if (req.session.user.role === 'Manager' || req.session.user.isSuperAdmin) {
+if (req.session.user.role === 'Manager' || req.session.user.role === 'SuperAdmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -68,10 +60,9 @@ res.redirect('/dashboard');
 };
 
 // Check if user is superadmin only - gates the register-admin page (Jun Yuan)
-// Superadmin is not a DB role (staff.role is only 'Chef'/'Manager') - it's the
-// hardcoded email allowlist above, checked at login and stashed on the session.
+// staff.role in the DB is ENUM('Chef','Manager','SuperAdmin').
 const checkSuperAdmin = (req, res, next) => {
-if (req.session.user && req.session.user.isSuperAdmin) {
+if (req.session.user && req.session.user.role === 'SuperAdmin') {
 return next();
 } else {
 req.flash('error', 'Access denied');
@@ -195,11 +186,10 @@ return res.redirect('/login');
 if (results.length > 0) {
 // Successful login
 const staffMember = results[0];
-staffMember.isSuperAdmin = SUPERADMIN_EMAILS.includes(staffMember.email);
 req.session.user = staffMember; // store user in session
 req.flash('success', 'Login successful!');
 // Route to the dashboard that matches the account's role
-if (staffMember.role === 'Manager' || staffMember.isSuperAdmin) {
+if (staffMember.role === 'Manager' || staffMember.role === 'SuperAdmin') {
 res.redirect('/admin');
 } else {
 res.redirect('/dashboard');
@@ -215,6 +205,63 @@ res.redirect('/login');
 // Admin route (Jun Yuan)
 app.get('/admin', checkAuthenticated, checkManager, (req, res) => {
 res.render('admin', { user: req.session.user });
+});
+
+// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only (Jun Yuan)
+app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const category = req.query.category || '';
+
+        let sql = 'SELECT * FROM ingredients WHERE 1=1';
+        const params = [];
+        if (search) {
+            sql += ' AND (ingredientName LIKE ? OR supplier LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`);
+        }
+        if (category) {
+            sql += ' AND category = ?';
+            params.push(category);
+        }
+        sql += ' ORDER BY ingredientName ASC';
+
+        const [products] = await db.promise().query(sql, params);
+
+        const [[{ totalIngredients }]] = await db.promise().query('SELECT COUNT(*) AS totalIngredients FROM ingredients');
+        const [[{ lowStockCount }]] = await db.promise().query('SELECT COUNT(*) AS lowStockCount FROM ingredients WHERE quantity <= minimumStock');
+        const [[{ expiringSoonCount }]] = await db.promise().query(`
+            SELECT COUNT(*) AS expiringSoonCount
+            FROM ingredients
+            WHERE expiryDate >= CURDATE() AND expiryDate <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+        `);
+        const [mostUsedRows] = await db.promise().query(`
+            SELECT i.ingredientName, SUM(u.quantityUsed) AS totalUsed
+            FROM ingredient_usage u
+            JOIN ingredients i ON i.ingredientId = u.ingredientId
+            GROUP BY u.ingredientId, i.ingredientName
+            ORDER BY totalUsed DESC
+            LIMIT 1
+        `);
+
+        res.render('manageInventory', {
+            user: req.session.user,
+            stats: {
+                totalIngredients,
+                lowStockCount,
+                expiringSoonCount,
+                mostUsedIngredient: mostUsedRows.length > 0 ? mostUsedRows[0].ingredientName : 'N/A'
+            },
+            search,
+            category,
+            products,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
+        });
+    } catch (error) {
+        console.error('Manage inventory error:', error);
+        req.flash('error', 'Could not load the inventory manager. Please try again.');
+        res.redirect('/admin');
+    }
 });
 
 // Inventory board: Good / Close to Expiry / Expired - admin/superadmin only (rizq)
