@@ -838,6 +838,1049 @@ app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
 
 });
 
+// Dashboard route - chef only (Tassie) with Search/Filter dropdowns (Tara)
+// =====================================================
+// KITCHEN DASHBOARD AND EXPIRY MONITORING
+// =====================================================
+
+// Check whether the user is logged in
+function requireKitchenLogin(req, res, next) {
+    if (!req.session || !req.session.user) {
+        req.flash('error', 'Please log in first.');
+        return res.redirect('/login');
+    }
+
+    next();
+}
+
+
+// Allow chefs and managers to access the pages
+function allowKitchenAccess(req, res, next) {
+    const role = req.session.user.role;
+
+    if (role === 'Chef' || role === 'Manager') {
+        return next();
+    }
+
+    req.flash(
+        'error',
+        'You do not have permission to access this page.'
+    );
+
+    res.redirect('/');
+}
+
+
+// Helper function for MySQL queries
+function runQuery(sql, values = []) {
+    return new Promise((resolve, reject) => {
+        db.query(sql, values, (error, results) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
+
+
+// =====================================================
+// KITCHEN DASHBOARD AND EXPIRY MONITORING
+// =====================================================
+
+// Helper function for database queries
+function runQuery(sql, values = []) {
+    return new Promise((resolve, reject) => {
+        db.query(sql, values, (error, results) => {
+            if (error) {
+                return reject(error);
+            }
+
+            resolve(results);
+        });
+    });
+}
+
+
+// Safely add backticks around database column names
+function quoteIdentifier(identifier) {
+    return `\`${String(identifier).replace(/`/g, '``')}\``;
+}
+
+
+// Find the correct column name inside the ingredients table
+function findColumn(columnNames, possibleNames, required = true) {
+    const match = possibleNames.find(name =>
+        columnNames.includes(name)
+    );
+
+    if (!match && required) {
+        throw new Error(
+            `The ingredients table is missing one of these columns: ${possibleNames.join(', ')}`
+        );
+    }
+
+    return match || null;
+}
+
+
+// Check the actual column names inside ingredients
+async function getIngredientColumnMap() {
+    const columns = await runQuery(
+        'SHOW COLUMNS FROM ingredients'
+    );
+
+    const names = columns.map(column => column.Field);
+
+    return {
+        id: findColumn(names, [
+            'ingredientId',
+            'ingredientID',
+            'ingredient_id',
+            'id'
+        ]),
+
+        name: findColumn(names, [
+            'ingredientName',
+            'ingredient_name',
+            'name'
+        ]),
+
+        quantity: findColumn(names, [
+            'quantity',
+            'stockQuantity',
+            'stock_quantity',
+            'currentStock',
+            'current_stock',
+            'stock'
+        ]),
+
+        unit: findColumn(
+            names,
+            [
+                'unit',
+                'measurementUnit',
+                'measurement_unit'
+            ],
+            false
+        ),
+
+        minimumStock: findColumn(
+            names,
+            [
+                'minimumStock',
+                'minimum_stock',
+                'minStock',
+                'min_stock',
+                'reorderLevel',
+                'reorder_level'
+            ],
+            false
+        ),
+
+        expiryDate: findColumn(names, [
+            'expiryDate',
+            'expiry_date',
+            'expirationDate',
+            'expiration_date'
+        ])
+    };
+}
+
+
+// Load all ingredients using the real table columns
+async function loadIngredients() {
+    const columns = await getIngredientColumnMap();
+
+    const selectParts = [
+        `${quoteIdentifier(columns.id)} AS ingredientId`,
+
+        `${quoteIdentifier(columns.name)} AS ingredientName`,
+
+        `${quoteIdentifier(columns.quantity)} AS quantity`,
+
+        columns.unit
+            ? `${quoteIdentifier(columns.unit)} AS unit`
+            : `'unit' AS unit`,
+
+        columns.minimumStock
+            ? `${quoteIdentifier(columns.minimumStock)} AS minimumStock`
+            : `10 AS minimumStock`,
+
+        `${quoteIdentifier(columns.expiryDate)} AS expiryDate`
+    ];
+
+    const rows = await runQuery(`
+        SELECT ${selectParts.join(', ')}
+        FROM ingredients
+        ORDER BY ${quoteIdentifier(columns.name)} ASC
+    `);
+
+    return rows.map(item => {
+        const quantity = Number(item.quantity || 0);
+
+        const minimumStock =
+            Number(item.minimumStock || 10);
+
+        let daysRemaining = null;
+        let expiryStatus = 'No Expiry Date';
+
+        if (item.expiryDate) {
+            const today = new Date();
+            const expiry = new Date(item.expiryDate);
+
+            today.setHours(0, 0, 0, 0);
+            expiry.setHours(0, 0, 0, 0);
+
+            daysRemaining = Math.round(
+                (
+                    expiry.getTime() -
+                    today.getTime()
+                ) /
+                (1000 * 60 * 60 * 24)
+            );
+
+            if (daysRemaining < 0) {
+                expiryStatus = 'Expired';
+            } else if (daysRemaining <= 7) {
+                expiryStatus = 'Expiring Soon';
+            } else {
+                expiryStatus = 'Safe';
+            }
+        }
+
+        return {
+            ...item,
+
+            quantity,
+
+            minimumStock,
+
+            daysRemaining,
+
+            daysExpired:
+                daysRemaining !== null &&
+                daysRemaining < 0
+                    ? Math.abs(daysRemaining)
+                    : 0,
+
+            expiryStatus,
+
+            isLowStock:
+                quantity <= minimumStock
+        };
+    });
+}
+
+
+// Load expiry requests and match them with ingredients
+async function loadExpiryRequests() {
+    const requests = await runQuery(`
+        SELECT *
+        FROM expiry_requests
+        ORDER BY createdAt DESC
+    `);
+
+    const ingredients = await loadIngredients();
+
+    const ingredientMap = new Map(
+        ingredients.map(item => [
+            String(item.ingredientId),
+            item
+        ])
+    );
+
+    return requests.map(request => {
+        const ingredient = ingredientMap.get(
+            String(request.ingredientId)
+        );
+
+        return {
+            ...request,
+
+            ingredientName:
+                ingredient
+                    ? ingredient.ingredientName
+                    : 'Unknown Ingredient',
+
+            unit:
+                ingredient
+                    ? ingredient.unit
+                    : ''
+        };
+    });
+}
+
+
+// Create expiry_requests table automatically
+db.query(
+    `
+        CREATE TABLE IF NOT EXISTS expiry_requests (
+            requestId INT AUTO_INCREMENT PRIMARY KEY,
+
+            ingredientId INT NOT NULL,
+
+            requestedBy VARCHAR(150) NOT NULL,
+
+            requestType VARCHAR(80) NOT NULL,
+
+            requestedQuantity DECIMAL(10,2) NOT NULL,
+
+            priority VARCHAR(30)
+                NOT NULL
+                DEFAULT 'Normal',
+
+            reason VARCHAR(500) NOT NULL,
+
+            status VARCHAR(30)
+                NOT NULL
+                DEFAULT 'Pending',
+
+            createdAt TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP,
+
+            updatedAt TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP
+        )
+    `,
+    error => {
+        if (error) {
+            console.error(
+                'Unable to prepare expiry_requests table:',
+                error.message
+            );
+        }
+    }
+);
+
+
+// =====================================================
+// KITCHEN OPERATIONS DASHBOARD
+// =====================================================
+app.get(
+    '/dashboard',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const ingredients = await loadIngredients();
+            const expiryRequests = await loadExpiryRequests();
+
+            // Load kitchen tasks from MySQL
+           const kitchenTasks = await runQuery(`
+            SELECT
+                taskId,
+                taskName,
+                taskDate,
+                status,
+                assignedTo
+            FROM kitchen_tasks
+            ORDER BY
+                FIELD(status, 'Pending', 'Completed'),
+                taskDate DESC,
+                taskId DESC
+        `);
+
+console.log('KITCHEN TASKS LOADED:', kitchenTasks);
+console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
+
+            // Ingredients that expired before today
+            const expiredIngredients = ingredients
+                .filter(item =>
+                    item.daysRemaining !== null &&
+                    item.daysRemaining < 0
+                )
+                .sort((a, b) =>
+                    a.daysRemaining - b.daysRemaining
+                );
+
+            // Ingredients expiring today
+            const expiringTodayIngredients = ingredients
+                .filter(item =>
+                    item.daysRemaining === 0
+                )
+                .sort((a, b) =>
+                    a.ingredientName.localeCompare(
+                        b.ingredientName
+                    )
+                );
+
+            // Ingredients expiring within the next 7 days
+            const expiringSoonIngredients = ingredients
+                .filter(item =>
+                    item.daysRemaining !== null &&
+                    item.daysRemaining > 0 &&
+                    item.daysRemaining <= 7
+                )
+                .sort((a, b) =>
+                    a.daysRemaining - b.daysRemaining
+                );
+
+            // Low-stock ingredients
+            const lowStockIngredients = ingredients
+                .filter(item => item.isLowStock)
+                .sort((a, b) =>
+                    a.quantity - b.quantity
+                );
+
+            // Build kitchen alerts
+            const kitchenAlerts = [];
+
+            expiringTodayIngredients.forEach(item => {
+                kitchenAlerts.push({
+                    type: 'danger',
+                    message:
+                        `${item.ingredientName} expires today.`
+                });
+            });
+
+            expiredIngredients.forEach(item => {
+                kitchenAlerts.push({
+                    type: 'danger',
+                    message:
+                        `${item.ingredientName} has expired.`
+                });
+            });
+
+            lowStockIngredients.forEach(item => {
+                kitchenAlerts.push({
+                    type: 'warning',
+                    message:
+                        `${item.ingredientName} is low in stock.`
+                });
+            });
+
+            expiringSoonIngredients.forEach(item => {
+                kitchenAlerts.push({
+                    type: 'info',
+                    message:
+                        `${item.ingredientName} expires in ` +
+                        `${item.daysRemaining} day(s).`
+                });
+            });
+
+            res.render('dashboard', {
+                user: req.session.user,
+
+                kitchenTasks: kitchenTasks,
+
+                expiredIngredients:
+                    expiredIngredients.slice(0, 5),
+
+                expiringTodayIngredients:
+                    expiringTodayIngredients.slice(0, 5),
+
+                expiringSoonIngredients:
+                    expiringSoonIngredients.slice(0, 5),
+
+                expiredCount:
+                    expiredIngredients.length,
+
+                expiringTodayCount:
+                    expiringTodayIngredients.length,
+
+                expiringSoonCount:
+                    expiringSoonIngredients.length,
+
+                kitchenAlerts:
+                    kitchenAlerts.slice(0, 6),
+
+                recentRequests:
+                    expiryRequests.slice(0, 5),
+
+                successMessages:
+                    req.flash('success'),
+
+                errorMessages:
+                    req.flash('error')
+            });
+
+        } catch (error) {
+            console.error(
+                'Kitchen dashboard database error:',
+                error
+            );
+
+            res.status(500).send(`
+                <div style="
+                    font-family: Arial;
+                    padding: 40px;
+                ">
+                    <h1>Kitchen dashboard error</h1>
+                    <p>${error.message}</p>
+                    <a href="/">Return to home page</a>
+                </div>
+            `);
+        }
+    }
+);
+
+// =====================================================
+// CREATE KITCHEN TASK
+// =====================================================
+app.post(
+    '/kitchen-tasks',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const taskName = String(
+                req.body.taskName || ''
+            ).trim();
+
+            const taskDate = String(
+                req.body.taskDate || ''
+            ).trim();
+
+            if (!taskName || !taskDate) {
+                req.flash(
+                    'error',
+                    'Please enter a task name and task date.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            const assignedTo =
+                req.session.user.fullName ||
+                req.session.user.username ||
+                req.session.user.email ||
+                'Chef';
+
+            const result = await runQuery(
+                `
+                    INSERT INTO kitchen_tasks (
+                        taskName,
+                        taskDate,
+                        status,
+                        assignedTo
+                    )
+                    VALUES (?, ?, 'Pending', ?)
+                `,
+                [
+                    taskName,
+                    taskDate,
+                    assignedTo
+                ]
+            );
+
+            console.log(
+                'Kitchen task created:',
+                result
+            );
+
+            req.flash(
+                'success',
+                'Kitchen task created successfully.'
+            );
+
+            return res.redirect('/dashboard');
+
+        } catch (error) {
+            console.error(
+                'Create kitchen task error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to create the kitchen task.'
+            );
+
+            return res.redirect('/dashboard');
+        }
+    }
+);
+// =====================================================
+// EDIT KITCHEN TASK
+// =====================================================
+app.post(
+    '/kitchen-tasks/:id/edit',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const taskId = Number(req.params.id);
+
+            const taskName = String(
+                req.body.taskName || ''
+            ).trim();
+
+            const taskDate = String(
+                req.body.taskDate || ''
+            ).trim();
+
+            const assignedTo = String(
+                req.body.assignedTo || ''
+            ).trim();
+
+            if (
+                !Number.isInteger(taskId) ||
+                !taskName ||
+                !taskDate ||
+                !assignedTo
+            ) {
+                req.flash(
+                    'error',
+                    'Please complete all task fields correctly.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            const result = await runQuery(
+                `
+                    UPDATE kitchen_tasks
+                    SET
+                        taskName = ?,
+                        taskDate = ?,
+                        assignedTo = ?
+                    WHERE taskId = ?
+                `,
+                [
+                    taskName,
+                    taskDate,
+                    assignedTo,
+                    taskId
+                ]
+            );
+
+            if (result.affectedRows === 0) {
+                req.flash(
+                    'error',
+                    'Kitchen task was not found.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            req.flash(
+                'success',
+                'Kitchen task updated successfully.'
+            );
+
+            return res.redirect('/dashboard');
+
+        } catch (error) {
+            console.error(
+                'Edit kitchen task error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to update the kitchen task.'
+            );
+
+            return res.redirect('/dashboard');
+        }
+    }
+);
+// =====================================================
+// DELETE KITCHEN TASK
+// =====================================================
+app.post(
+    '/kitchen-tasks/:id/delete',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const taskId = Number(req.params.id);
+
+            if (!Number.isInteger(taskId)) {
+                req.flash(
+                    'error',
+                    'Invalid kitchen task.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            const result = await runQuery(
+                `
+                    DELETE FROM kitchen_tasks
+                    WHERE taskId = ?
+                `,
+                [taskId]
+            );
+
+            if (result.affectedRows === 0) {
+                req.flash(
+                    'error',
+                    'Kitchen task was not found.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            req.flash(
+                'success',
+                'Kitchen task deleted successfully.'
+            );
+
+            return res.redirect('/dashboard');
+
+        } catch (error) {
+            console.error(
+                'Delete kitchen task error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to delete the kitchen task.'
+            );
+
+            return res.redirect('/dashboard');
+        }
+    }
+);
+
+
+
+// =====================================================
+// UPDATE KITCHEN TASK STATUS
+// =====================================================
+app.post(
+    '/kitchen-tasks/:id/toggle',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const taskId = Number(req.params.id);
+
+            if (!Number.isInteger(taskId)) {
+                req.flash(
+                    'error',
+                    'Invalid kitchen task.'
+                );
+
+                return res.redirect('/dashboard');
+            }
+
+            await runQuery(
+                `
+                    UPDATE kitchen_tasks
+                    SET status =
+                        CASE
+                            WHEN status = 'Pending'
+                                THEN 'Completed'
+                            ELSE 'Pending'
+                        END
+                    WHERE taskId = ?
+                `,
+                [taskId]
+            );
+
+            req.flash(
+                'success',
+                'Kitchen task status updated.'
+            );
+
+            return res.redirect('/dashboard');
+
+        } catch (error) {
+            console.error(
+                'Kitchen task update error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to update the kitchen task.'
+            );
+
+            return res.redirect('/dashboard');
+        }
+    }
+);
+
+
+// =====================================================
+// EXPIRY MONITORING
+// =====================================================
+app.get('/expirymonitoring', checkAuthenticated, async (req, res) => {
+    try {
+        // Values entered in the search/filter form
+        const search = (req.query.search || '').trim();
+        const selectedStatus = req.query.status || 'all';
+
+        // Get all ingredients using your existing helper
+        const ingredients = await loadIngredients();
+
+        // Search by ingredient name
+        let items = ingredients.filter((item) => {
+            const ingredientName = item.ingredientName || '';
+
+            return ingredientName
+                .toLowerCase()
+                .includes(search.toLowerCase());
+        });
+
+        // Filter by expiry status
+        if (selectedStatus === 'expired') {
+            items = items.filter(
+                (item) => item.expiryStatus === 'Expired'
+            );
+        }
+
+        if (selectedStatus === 'soon') {
+            items = items.filter(
+                (item) => item.expiryStatus === 'Expiring Soon'
+            );
+        }
+
+        if (selectedStatus === 'safe') {
+            items = items.filter(
+                (item) => item.expiryStatus === 'Safe'
+            );
+        }
+
+        // Display expirymonitoring.ejs
+        res.render('expirymonitoring', {
+            user: req.session.user,
+
+            search: search,
+            selectedStatus: selectedStatus,
+            items: items,
+
+            successMessages: req.flash('success'),
+            errorMessages: req.flash('error')
+        });
+
+    } catch (error) {
+        console.error(
+            'Expiry monitoring database error:',
+            error
+        );
+
+        req.flash(
+            'error',
+            'Unable to load expiry monitoring.'
+        );
+
+        res.redirect('/dashboard');
+    }
+});
+//=================================================
+// VIEW EXPIRY REQUESTS
+// =====================================================
+app.get(
+    '/expiryrequests',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const requests =
+                await loadExpiryRequests();
+
+            res.render(
+                'expiryrequests',
+                {
+                    user:
+                        req.session.user,
+
+                    requests,
+
+                    successMessages:
+                        req.flash('success'),
+
+                    errorMessages:
+                        req.flash('error')
+                }
+            );
+        } catch (error) {
+            console.error(
+                'Expiry request page error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to load expiration stock requests.'
+            );
+
+            res.redirect('/dashboard');
+        }
+    }
+);
+
+
+// =====================================================
+// SHOW NEW REQUEST FORM
+// =====================================================
+app.get('/expiryrequests/new', checkAuthenticated, async (req, res) => {
+
+    try {
+
+        const ingredients = await loadIngredients();
+
+        const expiringIngredients = ingredients.filter(item =>
+            item.expiryStatus === 'Expired' ||
+            item.expiryStatus === 'Expiring Soon'
+        );
+
+        res.render('newexpiryrequest', {
+            user: req.session.user,
+            ingredients: expiringIngredients,
+            errorMessages: req.flash('error')
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        req.flash('error', 'Unable to load page.');
+
+        res.redirect('/dashboard');
+
+    }
+
+});
+
+
+
+// =====================================================
+// SUBMIT NEW EXPIRY REQUEST
+// =====================================================
+app.post(
+    '/expiryrequests',
+    checkAuthenticated,
+    async (req, res) => {
+        try {
+            const ingredientId =
+                String(
+                    req.body.ingredientId || ''
+                ).trim();
+
+            const requestType =
+                String(
+                    req.body.requestType || ''
+                ).trim();
+
+            const requestedQuantity =
+                Number(
+                    req.body.requestedQuantity
+                );
+
+            const priority =
+                String(
+                    req.body.priority || ''
+                ).trim();
+
+            const reason =
+                String(
+                    req.body.reason || ''
+                ).trim();
+
+            const allowedRequestTypes = [
+                'Replace Expired Stock',
+                'Top Up Expiring Stock'
+            ];
+
+            const allowedPriorities = [
+                'Normal',
+                'High',
+                'Urgent'
+            ];
+
+            if (
+                !ingredientId ||
+                !allowedRequestTypes.includes(
+                    requestType
+                ) ||
+                !Number.isFinite(
+                    requestedQuantity
+                ) ||
+                requestedQuantity <= 0 ||
+                !allowedPriorities.includes(
+                    priority
+                ) ||
+                !reason
+            ) {
+                req.flash(
+                    'error',
+                    'Please complete all fields correctly.'
+                );
+
+                return res.redirect(
+                    '/expiryrequests/new'
+                );
+            }
+
+            const ingredients =
+                await loadIngredients();
+
+            const selectedIngredient =
+                ingredients.find(
+                    item =>
+                        String(
+                            item.ingredientId
+                        ) === ingredientId
+                );
+
+            if (!selectedIngredient) {
+                req.flash(
+                    'error',
+                    'The selected ingredient does not exist.'
+                );
+
+                return res.redirect(
+                    '/expiryrequests/new'
+                );
+            }
+
+            const requestedBy =
+                req.session.user.fullName ||
+                req.session.user.email ||
+                req.session.user.username ||
+                'Unknown User';
+
+            await runQuery(
+                `
+                    INSERT INTO expiry_requests (
+                        ingredientId,
+                        requestedBy,
+                        requestType,
+                        requestedQuantity,
+                        priority,
+                        reason,
+                        status
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, 'Pending')
+                `,
+                [
+                    ingredientId,
+                    requestedBy,
+                    requestType,
+                    requestedQuantity,
+                    priority,
+                    reason
+                ]
+            );
+
+            req.flash(
+                'success',
+                'Expiration stock request submitted successfully.'
+            );
+
+            return res.redirect(
+                '/expiryrequests'
+            );
+        } catch (error) {
+            console.error(
+                'Create expiry request error:',
+                error
+            );
+
+            req.flash(
+                'error',
+                'Unable to submit the expiration stock request.'
+            );
+
+            return res.redirect(
+                '/expiryrequests/new'
+            );
+        }
+    }
+);
+
 // Starting the server
 app.listen(3000, () => {
     console.log('Server started on port 3000');
