@@ -557,25 +557,31 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
         const totalAvailable = results.reduce((sum, item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
+
             const isExpired = expiry < today;
-            return isExpired ? sum : sum + item.quantity;
+
+            return isExpired ? sum : sum + Number(item.quantity || 0);
         }, 0);
 
-        // Below: counted by number of ingredients (unique ingredientId rows),
-        // NOT by summing quantity — each ingredient counts as 1, regardless of how much stock it has.
+        // Count how many ingredient records are expired.
         const expiredCount = results.filter((item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
+
             return expiry < today;
         }).length;
 
-        const lowStockCount = results.filter((item) => item.quantity <= item.minimumStock).length;
+        // Count how many ingredient records are low stock.
+        const lowStockCount = results.filter(
+            (item) => Number(item.quantity) <= Number(item.minimumStock)
+        ).length;
 
-        // Expired ingredients = food waste. Grab their quantity/unit for the waste bar chart. (rizq)
+        // Expired ingredients = food waste.
         const foodWasteItems = results
             .filter((item) => {
                 const expiry = new Date(item.expiryDate);
                 expiry.setHours(0, 0, 0, 0);
+
                 return expiry < today;
             })
             .map((item) => ({
@@ -585,56 +591,183 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
             }))
             .sort((a, b) => b.quantity - a.quantity);
 
-        // Most / least used ingredients, based on all recorded ingredient usage.
-        req.db.query(`
-            SELECT i.ingredientName, COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
+        // Most / least used ingredients.
+        req.db.query(
+            `
+            SELECT
+                i.ingredientName,
+                COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
             FROM ingredients i
-            LEFT JOIN ingredient_usage u ON u.ingredientId = i.ingredientId
+            LEFT JOIN ingredient_usage u
+                ON u.ingredientId = i.ingredientId
             GROUP BY i.ingredientId, i.ingredientName
             ORDER BY totalUsed DESC
-        `, (usageErr, usageRows) => {
-            if (usageErr) {
-                console.error('Board usage error:', usageErr);
-                req.flash('error', 'Could not load ingredient usage stats. Please try again.');
-                return res.redirect('/dashboard');
-            }
-            //rizq
-            const usedRows = usageRows.filter((row) => row.totalUsed > 0);
-
-            const mostUsedIngredients = usedRows.slice(0, 5);
-            const leastUsedIngredients = [...usedRows].reverse().slice(0, 5);
-
-            // Pending expiry requests, so managers can approve/decline right from the board. (rizq)
-            req.db.query(`
-                SELECT er.*, i.ingredientName
-                FROM expiry_requests er
-                LEFT JOIN ingredients i ON i.ingredientId = er.ingredientId
-                WHERE er.status = 'Pending'
-                ORDER BY er.createdAt DESC
-            `, (pendingErr, pendingRows) => {
-                if (pendingErr) {
-                    console.error('Board pending requests error:', pendingErr);
-                    req.flash('error', 'Could not load pending expiry requests. Please try again.');
+            `,
+            (usageErr, usageRows) => {
+                if (usageErr) {
+                    console.error('Board usage error:', usageErr);
+                    req.flash(
+                        'error',
+                        'Could not load ingredient usage stats. Please try again.'
+                    );
                     return res.redirect('/dashboard');
                 }
 
-                res.render('board', {
-                    user: req.session.user,
-                    totalAvailable,
-                    expiredCount,
-                    lowStockCount,
-                    foodWasteItems,
-                    mostUsedIngredients,
-                    leastUsedIngredients,
-                    pendingExpiryRequests: pendingRows,
-                    successMessages: req.flash('success'),
-                    errorMessages: req.flash('error')
-                });
-            });
-        });
+                const usedRows = usageRows.filter(
+                    (row) => Number(row.totalUsed) > 0
+                );
+
+                const mostUsedIngredients = usedRows.slice(0, 5);
+                const leastUsedIngredients = [...usedRows]
+                    .reverse()
+                    .slice(0, 5);
+
+                // Pending expiry requests for managers to approve or reject.
+                req.db.query(
+                    `
+                    SELECT
+                        er.*,
+                        i.ingredientName
+                    FROM expiry_requests er
+                    LEFT JOIN ingredients i
+                        ON i.ingredientId = er.ingredientId
+                    WHERE er.status = 'Pending'
+                    ORDER BY er.createdAt DESC
+                    `,
+                    (pendingErr, pendingRows) => {
+                        if (pendingErr) {
+                            console.error(
+                                'Board pending requests error:',
+                                pendingErr
+                            );
+
+                            req.flash(
+                                'error',
+                                'Could not load pending expiry requests. Please try again.'
+                            );
+
+                            return res.redirect('/dashboard');
+                        }
+return res.render('board', {
+                            user: req.session.user,
+                            totalAvailable,
+                            expiredCount,
+                            lowStockCount,
+                            foodWasteItems,
+                            mostUsedIngredients,
+                            leastUsedIngredients,
+                            pendingExpiryRequests: pendingRows,
+                            successMessages: req.flash('success'),
+                            errorMessages: req.flash('error')
+                        });
+                    }
+                );
+            }
+        );
     });
 });
 
+
+// Approve expiry request
+app.post(
+    '/expiryrequests/:id/approve',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid expiry request.');
+            return res.redirect('/board');
+        }
+
+        req.db.query(
+            `
+            UPDATE expiry_requests
+            SET status = 'Approved'
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (error, result) => {
+                if (error) {
+                    console.error('Approve expiry request error:', error);
+                    req.flash(
+                        'error',
+                        'Unable to approve the expiry request.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                if (result.affectedRows === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                req.flash(
+                    'success',
+                    'Expiry request approved successfully.'
+                );
+
+                return res.redirect('/board');
+            }
+        );
+    }
+);
+
+
+// Reject expiry request
+app.post(
+    '/expiryrequests/:id/reject',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid expiry request.');
+            return res.redirect('/board');
+        }
+
+        req.db.query(
+            `
+            UPDATE expiry_requests
+            SET status = 'Rejected'
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (error, result) => {
+                if (error) {
+                    console.error('Reject expiry request error:', error);
+                    req.flash(
+                        'error',
+                        'Unable to reject the expiry request.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                if (result.affectedRows === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                req.flash(
+                    'success',
+                    'Expiry request rejected successfully.'
+                );
+
+                return res.redirect('/board');
+            }
+        );
+    }
+);
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
