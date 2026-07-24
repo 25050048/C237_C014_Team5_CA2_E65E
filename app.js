@@ -1074,6 +1074,79 @@ app.get(
             const ingredients = await loadIngredients();
             const expiryRequests = await loadExpiryRequests();
 
+            // Search & Filter widget (Tara)
+            // Runs only when the widget's form has actually been submitted,
+            // so the dashboard looks the same as before until a search/filter
+            // is applied.
+            const search = req.query.search || '';
+            const filterCategory = req.query.category || '';
+            const filterStorage = req.query.storage || '';
+            const filterExpiry = req.query.expiry || '';
+            const filterStock = req.query.stock || '';
+            const sort = req.query.sort || '';
+
+            const hasSearchOrFilter = !!(
+                search || filterCategory || filterStorage ||
+                filterExpiry || filterStock || sort
+            );
+
+            let searchResults = null;
+
+            if (hasSearchOrFilter) {
+                let sql = `
+                    SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+                    FROM ingredients
+                    WHERE 1=1
+                `;
+                const params = [];
+
+                if (search) {
+                    sql += ` AND ingredientName LIKE ?`;
+                    params.push(`%${search}%`);
+                }
+                if (filterCategory) {
+                    sql += ` AND category = ?`;
+                    params.push(filterCategory);
+                }
+                if (filterStorage) {
+                    sql += ` AND storageLocation = ?`;
+                    params.push(filterStorage);
+                }
+                if (filterExpiry === 'expired') {
+                    sql += ` AND expiryDate < CURDATE()`;
+                } else if (filterExpiry === '3days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
+                } else if (filterExpiry === '7days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
+                } else if (filterExpiry === '30days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`;
+                }
+                if (filterStock === 'low') {
+                    sql += ` AND quantity <= minimumStock`;
+                }
+
+                if (sort === 'expiry_desc') {
+                    sql += ` ORDER BY expiryDate DESC`;
+                } else if (sort === 'name_asc') {
+                    sql += ` ORDER BY ingredientName ASC`;
+                } else if (sort === 'newest') {
+                    sql += ` ORDER BY createdAt DESC`;
+                } else {
+                    sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
+                }
+
+                const [rows] = await db.promise().query(sql, params);
+                searchResults = rows;
+            }
+            // (END Tara)
+
+            const [categoryRows] = await db.promise().query(
+                `SELECT categoryName FROM categories ORDER BY categoryName ASC`
+            );
+            const [storageRows] = await db.promise().query(
+                `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+            );
+
             // Load kitchen tasks from MySQL
            const kitchenTasks = await runQuery(`
             SELECT
@@ -1195,6 +1268,19 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
 
                 recentRequests:
                     expiryRequests.slice(0, 5),
+
+    
+                // Search & Filter widget data (Tara)
+                searchResults,
+                categories: categoryRows.map(r => r.categoryName),
+                storageOptions: storageRows.map(r => r.storageLocation),
+                searchTerm: search,
+                selectedCategory: filterCategory,
+                selectedStorage: filterStorage,
+                selectedExpiry: filterExpiry,
+                selectedStock: filterStock,
+                selectedSort: sort,
+                // ( END Tara )
 
                 successMessages:
                     req.flash('success'),
@@ -1789,94 +1875,157 @@ app.post(
 );
 
 
-// Search & Filter routes (Tara)
-app.get('/search', requireLogin, async (req, res) => {
+
+
+// CATEGORY MANAGEMENT (Tara)
+// The search/filter widget on the Kitchen Operations dashboard also reads
+// from this table to populate its Category dropdown.
+
+// [GET] List all categories
+app.get('/categories', checkAuthenticated, async (req, res) => {
     try {
-        const search = req.query.search || '';
-        const category = req.query.category || '';
-        const storage = req.query.storage || '';
-        const expiry = req.query.expiry || '';
-        const sort = req.query.sort || '';
-
-        let sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE 1=1
-        `;
-        const params = [];
-
-        if (search) {
-            sql += ` AND ingredientName LIKE ?`;
-            params.push(`%${search}%`);
-        }
-        if (category) {
-            sql += ` AND category = ?`;
-            params.push(category);
-        }
-        if (storage) {
-            sql += ` AND storageLocation = ?`;
-            params.push(storage);
-        }
-        if (expiry === 'expired') {
-            sql += ` AND expiryDate < CURDATE()`;
-        } else if (expiry === '3days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
-        } else if (expiry === '7days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
-        }
-
-        if (sort === 'expiry_desc') {
-            sql += ` ORDER BY expiryDate DESC`;
-        } else if (sort === 'name_asc') {
-            sql += ` ORDER BY ingredientName ASC`;
-        } else if (sort === 'newest') {
-            sql += ` ORDER BY createdAt DESC`;
-        } else {
-            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
-        }
-
-        const [items] = await db.promise().query(sql, params);
-        const [categoryRows] = await db.promise().query(
-            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        const [categories] = await db.promise().query(
+            `SELECT * FROM categories ORDER BY categoryName ASC`
         );
-        const [storageRows] = await db.promise().query(
-            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
-        );
-
-        res.render('search', {
+        res.render('category', {
             user: req.session.user,
-            items,
-            categories: categoryRows.map(r => r.category),
-            storageOptions: storageRows.map(r => r.storageLocation),
-            search,
-            selectedCategory: category,
-            selectedStorage: storage,
-            selectedExpiry: expiry,
-            selectedSort: sort
+            categories,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
         });
     } catch (error) {
-        console.error('Search error:', error);
-        req.flash('error', 'Something went wrong while searching. Please try again.');
-        res.redirect('/dashboard');
+        console.error('List categories error:', error);
+        req.flash('error', 'Unable to load categories.');
+        res.redirect('/dashboard/overview');
     }
 });
 
-app.get('/expiring', requireLogin, async (req, res) => {
+// [GET] Show the add-category form
+app.get('/categories/new', checkAuthenticated, (req, res) => {
+    res.render('newcategory', {
+        user: req.session.user,
+        messages: req.flash('error'),
+        formData: req.flash('formData')[0] || {}
+    });
+});
+
+// [POST] Create a new category
+app.post('/categories/new', checkAuthenticated, async (req, res) => {
+    const categoryName = String(req.body.categoryName || '').trim();
+
+    if (!categoryName) {
+        req.flash('error', 'Category name is required.');
+        req.flash('formData', req.body);
+        return res.redirect('/categories/new');
+    }
+
     try {
-        const sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-            ORDER BY expiryDate ASC
-        `;
-        const [items] = await db.promise().query(sql);
-        res.render('expiring', { user: req.session.user, items });
+        await db.promise().query(
+            `INSERT INTO categories (categoryName) VALUES (?)`,
+            [categoryName]
+        );
+        req.flash('success', 'Category added successfully.');
+        res.redirect('/categories');
     } catch (error) {
-        console.error('Expiring error:', error);
-        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
-        res.redirect('/dashboard');
+        console.error('Add category error:', error);
+        const message = error.code === 'ER_DUP_ENTRY'
+            ? 'That category already exists.'
+            : 'Unable to add the category. Please try again.';
+        req.flash('error', message);
+        req.flash('formData', req.body);
+        res.redirect('/categories/new');
     }
 });
+
+// [GET] Show the edit-category form
+app.get('/categories/:id/edit', checkAuthenticated, async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT * FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        if (rows.length === 0) {
+            req.flash('error', 'Category not found.');
+            return res.redirect('/categories');
+        }
+        res.render('updatecategory', {
+            user: req.session.user,
+            category: rows[0],
+            messages: req.flash('error')
+        });
+    } catch (error) {
+        console.error('Load edit category error:', error);
+        req.flash('error', 'Unable to load the category.');
+        res.redirect('/categories');
+    }
+});
+
+// [POST] Save changes to a category
+app.post('/categories/:id/edit', checkAuthenticated, async (req, res) => {
+    const categoryName = String(req.body.categoryName || '').trim();
+    const categoryId = req.params.id;
+
+    if (!categoryName) {
+        req.flash('error', 'Category name is required.');
+        return res.redirect(`/categories/${categoryId}/edit`);
+    }
+
+    try {
+        await db.promise().query(
+            `UPDATE categories SET categoryName = ? WHERE categoryId = ?`,
+            [categoryName, categoryId]
+        );
+        req.flash('success', 'Category updated successfully.');
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Update category error:', error);
+        const message = error.code === 'ER_DUP_ENTRY'
+            ? 'That category already exists.'
+            : 'Unable to update the category. Please try again.';
+        req.flash('error', message);
+        res.redirect(`/categories/${categoryId}/edit`);
+    }
+});
+
+// [GET] Show the delete-category confirmation page
+app.get('/categories/:id/delete', checkAuthenticated, async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT * FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        res.render('deletecategory', {
+            user: req.session.user,
+            category: rows.length > 0 ? rows[0] : null,
+            messages: req.flash('error')
+        });
+    } catch (error) {
+        console.error('Load delete category error:', error);
+        req.flash('error', 'Unable to load delete confirmation.');
+        res.redirect('/categories');
+    }
+});
+
+// [POST] Delete a category
+app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
+    try {
+        const [result] = await db.promise().query(
+            `DELETE FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        if (result.affectedRows === 0) {
+            req.flash('error', 'Category not found.');
+        } else {
+            req.flash('success', 'Category deleted successfully.');
+        }
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Delete category error:', error);
+        req.flash('error', 'Unable to delete the category.');
+        res.redirect('/categories');
+    }
+});
+
 
 // [GET] Display Ingredient Usage Form (Sean)
 app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
