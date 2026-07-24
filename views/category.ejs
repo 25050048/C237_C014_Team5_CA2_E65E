@@ -25,11 +25,11 @@
     </div>
 
     <div class="card-body p-0">
-        <% if (categories.length === 0) { %>
+        <% if (categoryList.length === 0) { %>
             <p class="text-muted p-3 mb-0">No categories yet. Add one to get started.</p>
         <% } else { %>
             <ul class="list-group list-group-flush">
-                <% categories.forEach(function(cat) { %>
+                <% categoryList.forEach(function(cat) { %>
                     <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
                         <span><%= cat.categoryName %></span>
                         <div class="d-flex gap-1">
@@ -58,9 +58,9 @@
 
 </div>
 
-<%- include('newCategoryForm') %>
+<%- include('newCategory') %>
 
-<% categories.forEach(function(cat) { %>
-    <%- include('editCategoryForm', { category: cat }) %>
-    <%- include('deleteCategoryForm', { category: cat }) %>
+<% categoryList.forEach(function(cat) { %>
+    <%- include('updateCategory', { category: cat }) %>
+    <%- include('deleteCategory', { category: cat }) %>
 <% }); %>
