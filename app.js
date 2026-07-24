@@ -464,15 +464,17 @@ app.post('/addProduct', checkAuthenticated, checkManager, ingredientUpload.singl
         return res.redirect('/addNewIngredient');
     }
 
+    const createdBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
+
     const insertSql = `
         INSERT INTO ingredients
-        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     db.query(
         insertSql,
-        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image],
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy],
         (err) => {
             if (err) {
                 console.error('Add ingredient error:', err);
