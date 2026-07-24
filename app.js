@@ -450,6 +450,47 @@ app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
+app.post('/addNewIngredient', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+    const name = String(req.body.name || '').trim();
+    const category = String(req.body.category || '').trim();
+    const supplier = String(req.body.supplier || '').trim();
+    const quantity = Number(req.body.quantity);
+    const unit = String(req.body.unit || '').trim();
+    const storageLocation = String(req.body.storageLocation || '').trim();
+    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
+    const image = req.file ? req.file.filename : null;
+    const createdBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
+    const updatedBy = createdBy;
+
+    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
+        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
+        req.flash('formData', { name, category, supplier, quantity: req.body.quantity, unit, storageLocation, expiryDate });
+        return res.redirect('/addNewIngredient');
+    }
+
+    const insertSql = `
+        INSERT INTO ingredients
+        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy, updatedBy, minimumStock)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `;
+
+    db.query(
+        insertSql,
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy, updatedBy],
+        (err) => {
+            if (err) {
+                console.error('Add ingredient error:', err);
+                req.flash('error', 'Unable to add the ingredient. Please try again.');
+                req.flash('formData', { name, category, supplier, quantity: req.body.quantity, unit, storageLocation, expiryDate });
+                return res.redirect('/addNewIngredient');
+            }
+
+            req.flash('success', 'Ingredient added successfully.');
+            res.redirect('/manage-inventory');
+        }
+    );
+});
+
 app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
     const ingredientId = req.params.id;
     const name = String(req.body.name || '').trim();
