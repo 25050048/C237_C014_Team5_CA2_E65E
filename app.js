@@ -1896,33 +1896,13 @@ app.post(
 // from this table to populate its Category dropdown.
 // =====================================================
 
-// [GET] List all categories
-app.get('/categories', checkAuthenticated, async (req, res) => {
-    try {
-        const [categories] = await db.promise().query(
-            `SELECT * FROM categories ORDER BY categoryName ASC`
-        );
-        res.render('category', {
-            user: req.session.user,
-            categories,
-            messages: req.flash('error'),
-            successMessages: req.flash('success')
-        });
-    } catch (error) {
-        console.error('List categories error:', error);
-        req.flash('error', 'Unable to load categories.');
-        res.redirect('/dashboard/overview');
-    }
-});
-
-// [GET] Show the add-category form
-app.get('/categories/new', checkAuthenticated, (req, res) => {
-    res.render('newcategory', {
-        user: req.session.user,
-        messages: req.flash('error'),
-        formData: req.flash('formData')[0] || {}
-    });
-});
+// NOTE: Category management now lives inline on the Kitchen Operations
+// dashboard (/dashboard/overview) as Add/Edit/Delete modals, using the
+// categoryList data already loaded there. The old standalone GET pages
+// (category.ejs, newcategory.ejs, updatecategory.ejs, deletecategory.ejs)
+// are no longer linked to, so their GET routes have been removed. The
+// POST routes below are unchanged in behaviour, but now redirect back to
+// the dashboard instead of the old standalone pages.
 
 // [POST] Create a new category
 app.post('/categories/new', checkAuthenticated, async (req, res) => {
@@ -1931,7 +1911,7 @@ app.post('/categories/new', checkAuthenticated, async (req, res) => {
     if (!categoryName) {
         req.flash('error', 'Category name is required.');
         req.flash('formData', req.body);
-        return res.redirect('/categories/new');
+        return res.redirect('/dashboard/overview');
     }
 
     try {
@@ -1940,7 +1920,7 @@ app.post('/categories/new', checkAuthenticated, async (req, res) => {
             [categoryName]
         );
         req.flash('success', 'Category added successfully.');
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     } catch (error) {
         console.error('Add category error:', error);
         const message = error.code === 'ER_DUP_ENTRY'
@@ -1948,30 +1928,7 @@ app.post('/categories/new', checkAuthenticated, async (req, res) => {
             : 'Unable to add the category. Please try again.';
         req.flash('error', message);
         req.flash('formData', req.body);
-        res.redirect('/categories/new');
-    }
-});
-
-// [GET] Show the edit-category form
-app.get('/categories/:id/edit', checkAuthenticated, async (req, res) => {
-    try {
-        const [rows] = await db.promise().query(
-            `SELECT * FROM categories WHERE categoryId = ?`,
-            [req.params.id]
-        );
-        if (rows.length === 0) {
-            req.flash('error', 'Category not found.');
-            return res.redirect('/categories');
-        }
-        res.render('updatecategory', {
-            user: req.session.user,
-            category: rows[0],
-            messages: req.flash('error')
-        });
-    } catch (error) {
-        console.error('Load edit category error:', error);
-        req.flash('error', 'Unable to load the category.');
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     }
 });
 
@@ -1982,7 +1939,7 @@ app.post('/categories/:id/edit', checkAuthenticated, async (req, res) => {
 
     if (!categoryName) {
         req.flash('error', 'Category name is required.');
-        return res.redirect(`/categories/${categoryId}/edit`);
+        return res.redirect('/dashboard/overview');
     }
 
     try {
@@ -1991,33 +1948,14 @@ app.post('/categories/:id/edit', checkAuthenticated, async (req, res) => {
             [categoryName, categoryId]
         );
         req.flash('success', 'Category updated successfully.');
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     } catch (error) {
         console.error('Update category error:', error);
         const message = error.code === 'ER_DUP_ENTRY'
             ? 'That category already exists.'
             : 'Unable to update the category. Please try again.';
         req.flash('error', message);
-        res.redirect(`/categories/${categoryId}/edit`);
-    }
-});
-
-// [GET] Show the delete-category confirmation page
-app.get('/categories/:id/delete', checkAuthenticated, async (req, res) => {
-    try {
-        const [rows] = await db.promise().query(
-            `SELECT * FROM categories WHERE categoryId = ?`,
-            [req.params.id]
-        );
-        res.render('deletecategory', {
-            user: req.session.user,
-            category: rows.length > 0 ? rows[0] : null,
-            messages: req.flash('error')
-        });
-    } catch (error) {
-        console.error('Load delete category error:', error);
-        req.flash('error', 'Unable to load delete confirmation.');
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     }
 });
 
@@ -2033,11 +1971,11 @@ app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
         } else {
             req.flash('success', 'Category deleted successfully.');
         }
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     } catch (error) {
         console.error('Delete category error:', error);
         req.flash('error', 'Unable to delete the category.');
-        res.redirect('/categories');
+        res.redirect('/dashboard/overview');
     }
 });
 // ================[ END TARA ]================
