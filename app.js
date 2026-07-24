@@ -489,6 +489,46 @@ app.post('/addProduct', checkAuthenticated, checkManager, ingredientUpload.singl
     );
 });
 
+app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+    const ingredientId = req.params.id;
+    const name = String(req.body.name || '').trim();
+    const category = String(req.body.category || '').trim();
+    const supplier = String(req.body.supplier || '').trim();
+    const quantity = Number(req.body.quantity);
+    const unit = String(req.body.unit || '').trim();
+    const storageLocation = String(req.body.storageLocation || '').trim();
+    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
+    const oldImage = String(req.body.oldImage || '').trim();
+    const image = req.file ? req.file.filename : oldImage || null;
+    const updatedBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
+
+    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
+        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
+        return res.redirect('/manage-inventory');
+    }
+
+    const updateSql = `
+        UPDATE ingredients
+        SET ingredientName = ?, category = ?, supplier = ?, quantity = ?, unit = ?, storageLocation = ?, expiryDate = ?, image = ?, updatedBy = ?
+        WHERE ingredientId = ?
+    `;
+
+    db.query(
+        updateSql,
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, updatedBy, ingredientId],
+        (err) => {
+            if (err) {
+                console.error('Update ingredient error:', err);
+                req.flash('error', 'Unable to update the ingredient. Please try again.');
+                return res.redirect('/manage-inventory');
+            }
+
+            req.flash('success', 'Ingredient updated successfully.');
+            return res.redirect('/manage-inventory');
+        }
+    );
+});
+
 // Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
 app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
