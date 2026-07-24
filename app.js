@@ -1074,7 +1074,8 @@ app.get(
             const ingredients = await loadIngredients();
             const expiryRequests = await loadExpiryRequests();
 
-            // Search & Filter widget (Tara)
+            // ==================[ TARA ]==================
+            // Search & Filter widget
             // Runs only when the widget's form has actually been submitted,
             // so the dashboard looks the same as before until a search/filter
             // is applied.
@@ -1138,10 +1139,10 @@ app.get(
                 const [rows] = await db.promise().query(sql, params);
                 searchResults = rows;
             }
-            // (END Tara)
+            // ================[ END TARA ]================
 
             const [categoryRows] = await db.promise().query(
-                `SELECT categoryName FROM categories ORDER BY categoryName ASC`
+                `SELECT categoryId, categoryName FROM categories ORDER BY categoryName ASC`
             );
             const [storageRows] = await db.promise().query(
                 `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
@@ -1269,10 +1270,11 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
                 recentRequests:
                     expiryRequests.slice(0, 5),
 
-    
-                // Search & Filter widget data (Tara)
+                // ==================[ TARA ]==================
+                // Search & Filter widget data
                 searchResults,
                 categories: categoryRows.map(r => r.categoryName),
+                categoryList: categoryRows,
                 storageOptions: storageRows.map(r => r.storageLocation),
                 searchTerm: search,
                 selectedCategory: filterCategory,
@@ -1280,7 +1282,7 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
                 selectedExpiry: filterExpiry,
                 selectedStock: filterStock,
                 selectedSort: sort,
-                // ( END Tara )
+                // ================[ END TARA ]================
 
                 successMessages:
                     req.flash('success'),
@@ -1875,11 +1877,12 @@ app.post(
 );
 
 
-
-
-// CATEGORY MANAGEMENT (Tara)
+// =====================================================
+// ==================[ TARA ]====================
+// CATEGORY MANAGEMENT
 // The search/filter widget on the Kitchen Operations dashboard also reads
 // from this table to populate its Category dropdown.
+// =====================================================
 
 // [GET] List all categories
 app.get('/categories', checkAuthenticated, async (req, res) => {
@@ -2025,7 +2028,7 @@ app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
         res.redirect('/categories');
     }
 });
-
+// ================[ END TARA ]================
 
 // [GET] Display Ingredient Usage Form (Sean)
 app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
