@@ -592,14 +592,32 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
             const mostUsedIngredients = usedRows.slice(0, 5);
             const leastUsedIngredients = [...usedRows].reverse().slice(0, 5);
 
-            res.render('board', {
-                user: req.session.user,
-                totalAvailable,
-                expiredCount,
-                lowStockCount,
-                foodWasteItems,
-                mostUsedIngredients,
-                leastUsedIngredients
+            // Pending expiry requests, so managers can approve/decline right from the board. (rizq)
+            req.db.query(`
+                SELECT er.*, i.ingredientName
+                FROM expiry_requests er
+                LEFT JOIN ingredients i ON i.ingredientId = er.ingredientId
+                WHERE er.status = 'Pending'
+                ORDER BY er.createdAt DESC
+            `, (pendingErr, pendingRows) => {
+                if (pendingErr) {
+                    console.error('Board pending requests error:', pendingErr);
+                    req.flash('error', 'Could not load pending expiry requests. Please try again.');
+                    return res.redirect('/dashboard');
+                }
+
+                res.render('board', {
+                    user: req.session.user,
+                    totalAvailable,
+                    expiredCount,
+                    lowStockCount,
+                    foodWasteItems,
+                    mostUsedIngredients,
+                    leastUsedIngredients,
+                    pendingExpiryRequests: pendingRows,
+                    successMessages: req.flash('success'),
+                    errorMessages: req.flash('error')
+                });
             });
         });
     });
