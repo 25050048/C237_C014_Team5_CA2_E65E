@@ -17,7 +17,7 @@
       <div class="collapse navbar-collapse" id="collapsibleNavbar">
         <ul class="navbar-nav">
           <li class="nav-item">
-            <a class="nav-link" href="#" id="showAddIngredientBtn">Add Ingredient</a>
+            <a class="nav-link" href="/addNewIngredient">Add Ingredient</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="/restocking-requests">Restocking</a>
@@ -65,7 +65,7 @@
     <% } %>
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h2 class="mb-0">Manager Inventory Dashboard</h2>
-      <button class="btn btn-success" id="showAddIngredientBtnTop">Add Ingredient</button>
+      <a href="/addNewIngredient" class="btn btn-success">Add Ingredient</a>
     </div>
 
     <% if (successMessages && successMessages.length > 0) { %>
@@ -80,81 +80,6 @@
       </script>
     <% } %>
 
-    <div id="ingredientFormPanel" class="card mb-4 d-none">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-          <h5 id="ingredientFormTitle" class="mb-0">Add Ingredient</h5>
-          <small id="ingredientFormSubtitle" class="text-muted">Enter ingredient details and save to inventory.</small>
-        </div>
-        <button type="button" class="btn btn-secondary" id="closeIngredientFormBtn">Close</button>
-      </div>
-      <div class="card-body">
-        <div class="row gy-4">
-          <div class="col-lg-6">
-            <form id="ingredientForm" action="/addProduct" method="POST" enctype="multipart/form-data">
-              <input type="hidden" id="ingredientIdInput" name="ingredientId" value="">
-              <div class="mb-3">
-                <label for="ingredientName" class="form-label">Ingredient Name</label>
-                <input type="text" class="form-control" id="ingredientName" name="name" required>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label for="category" class="form-label">Category</label>
-                  <select class="form-control" id="category" name="category" required>
-                    <option value="">Select category</option>
-                    <% if (categories && categories.length > 0) { %>
-                      <% categories.forEach(function(cat) { %>
-                        <option value="<%= cat %>"><%= cat %></option>
-                      <% }); %>
-                    <% } %>
-                  </select>
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label for="supplier" class="form-label">Supplier</label>
-                  <input type="text" class="form-control" id="supplier" name="supplier">
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-4 mb-3">
-                  <label for="quantity" class="form-label">Quantity</label>
-                  <input type="number" class="form-control" id="quantity" name="quantity" min="0" step="1" required>
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label for="unit" class="form-label">Unit</label>
-                  <input type="text" class="form-control" id="unit" name="unit">
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label for="storageLocation" class="form-label">Storage Location</label>
-                  <input type="text" class="form-control" id="storageLocation" name="storageLocation" required>
-                </div>
-              </div>
-              <div class="mb-3">
-                <label for="expiryDate" class="form-label">Expiry Date</label>
-                <input type="date" class="form-control" id="expiryDate" name="expiryDate">
-              </div>
-              <div class="mb-3">
-                <label for="image" class="form-label">Ingredient Image</label>
-                <input class="form-control" type="file" id="image" name="image" accept="image/*">
-              </div>
-              <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary" id="ingredientFormSubmit">Save Ingredient</button>
-                <button type="button" class="btn btn-outline-secondary" id="cancelIngredientFormBtn2">Cancel</button>
-              </div>
-            </form>
-          </div>
-          <div class="col-lg-6">
-            <div class="card border-secondary h-100">
-              <div class="card-body">
-                <h5 class="card-title" id="ingredientDetailsTitle">Ingredient Details</h5>
-                <div id="ingredientDetailsContent">
-                  <p>Select an ingredient from the table to edit, or click Add Ingredient to create a new one.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <div class="row g-3 mb-4">
       <div class="col-md-3">
@@ -242,83 +167,6 @@
       </table>
     <% } %>
   </div>
-  <script>
-    const openIngredientForm = (mode = 'add', data = {}) => {
-      const panel = document.getElementById('ingredientFormPanel');
-      const title = document.getElementById('ingredientFormTitle');
-      const subtitle = document.getElementById('ingredientFormSubtitle');
-      const submitButton = document.getElementById('ingredientFormSubmit');
-      const detailsTitle = document.getElementById('ingredientDetailsTitle');
-      const detailsContent = document.getElementById('ingredientDetailsContent');
-      const form = document.getElementById('ingredientForm');
-      const action = mode === 'edit' ? '/updateIngredient/' + data.id : '/addProduct';
-
-      form.action = action;
-      title.textContent = mode === 'edit' ? 'Edit Ingredient' : 'Add Ingredient';
-      subtitle.textContent = mode === 'edit'
-        ? 'Update the ingredient details and save your changes.'
-        : 'Enter ingredient details and save to inventory.';
-      submitButton.textContent = mode === 'edit' ? 'Update Ingredient' : 'Save Ingredient';
-      detailsTitle.textContent = mode === 'edit' ? 'Ingredient Details' : 'Add Ingredient';
-
-      document.getElementById('ingredientIdInput').value = data.id || '';
-      document.getElementById('ingredientName').value = data.name || '';
-      document.getElementById('category').value = data.category || '';
-      document.getElementById('supplier').value = data.supplier || '';
-      document.getElementById('quantity').value = data.quantity || '';
-      document.getElementById('unit').value = data.unit || '';
-      document.getElementById('storageLocation').value = data.storageLocation || '';
-      document.getElementById('expiryDate').value = data.expiryDate || '';
-      document.getElementById('image').value = '';
-
-      detailsContent.innerHTML = mode === 'edit'
-        ? `<p><strong>Ingredient Name:</strong> ${data.name || ''}</p>
-           <p><strong>Category:</strong> ${data.category || ''}</p>
-           <p><strong>Supplier:</strong> ${data.supplier || ''}</p>
-           <p><strong>Quantity:</strong> ${data.quantity || ''}</p>
-           <p><strong>Unit:</strong> ${data.unit || ''}</p>
-           <p><strong>Location:</strong> ${data.storageLocation || ''}</p>
-           <p><strong>Expiry Date:</strong> ${data.expiryDate || 'Not set'}</p>
-           <p><strong>Image:</strong> ${data.image ? data.image : 'None'}</p>`
-        : '<p>Select an ingredient from the table to edit, or click Add Ingredient to create a new one.</p>';
-
-      panel.classList.remove('d-none');
-      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-
-    const closeIngredientForm = () => {
-      document.getElementById('ingredientFormPanel').classList.add('d-none');
-    };
-
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('showAddIngredientBtn').addEventListener('click', function(e) {
-        e.preventDefault();
-        openIngredientForm('add');
-      });
-      document.getElementById('showAddIngredientBtnTop').addEventListener('click', function() {
-        openIngredientForm('add');
-      });
-      document.getElementById('closeIngredientFormBtn').addEventListener('click', closeIngredientForm);
-      document.getElementById('cancelIngredientFormBtn2').addEventListener('click', closeIngredientForm);
-
-      document.querySelectorAll('.edit-ingredient-link').forEach(function(link) {
-        link.addEventListener('click', function(e) {
-          e.preventDefault();
-          openIngredientForm('edit', {
-            id: this.dataset.id,
-            name: this.dataset.name,
-            category: this.dataset.category,
-            supplier: this.dataset.supplier,
-            quantity: this.dataset.quantity,
-            unit: this.dataset.unit,
-            storageLocation: this.dataset.storageLocation,
-            expiryDate: this.dataset.expiryDate,
-            image: this.dataset.image
-          });
-        });
-      });
-    });
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
