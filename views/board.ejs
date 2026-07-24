@@ -28,16 +28,16 @@
 
         <h1>Manager Dashboard</h1>
 
-        <!-- Flash Messages -->
-        <% if (messages && messages.length > 0) { %>
+        <!-- Flash Messages - using the correct variable names from the route -->
+        <% if (successMessages && successMessages.length > 0) { %>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <%= messages[0] %>
+                <%= successMessages[0] %>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <% } %>
-        <% if (errors && errors.length > 0) { %>
+        <% if (errorMessages && errorMessages.length > 0) { %>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <%= errors[0] %>
+                <%= errorMessages[0] %>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <% } %>
@@ -49,7 +49,7 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Total Ingredients Available</h6>
-                            <h2><%= totalAvailable %></h2>
+                            <h2><%= totalAvailable || 0 %></h2>
                             <small class="text-muted">Excludes expired stock</small>
                         </div>
                     </div>
@@ -58,7 +58,7 @@
                     <div class="card shadow-sm h-100 border-danger">
                         <div class="card-body">
                             <h6 class="text-muted">Expired Ingredients</h6>
-                            <h2><%= expiredCount %></h2>
+                            <h2><%= expiredCount || 0 %></h2>
                             <small class="text-muted">Number of ingredients past expiry date</small>
                         </div>
                     </div>
@@ -67,7 +67,7 @@
                     <div class="card shadow-sm h-100 border-warning">
                         <div class="card-body">
                             <h6 class="text-muted">Low Stock Ingredients</h6>
-                            <h2><%= lowStockCount %></h2>
+                            <h2><%= lowStockCount || 0 %></h2>
                             <small class="text-muted">Number of ingredients at/below minimum stock</small>
                         </div>
                     </div>
@@ -80,7 +80,7 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Most Used Ingredients</h6>
-                            <% if (typeof mostUsedIngredients !== 'undefined' && mostUsedIngredients.length > 0) { %>
+                            <% if (mostUsedIngredients && mostUsedIngredients.length > 0) { %>
                                 <canvas id="mostUsedChart" height="220"></canvas>
                             <% } else { %>
                                 <p class="mb-0 text-muted">No usage recorded yet.</p>
@@ -92,7 +92,7 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Least Used Ingredients</h6>
-                            <% if (typeof leastUsedIngredients !== 'undefined' && leastUsedIngredients.length > 0) { %>
+                            <% if (leastUsedIngredients && leastUsedIngredients.length > 0) { %>
                                 <canvas id="leastUsedChart" height="220"></canvas>
                             <% } else { %>
                                 <p class="mb-0 text-muted">No usage recorded yet.</p>
@@ -108,7 +108,7 @@
                     <div class="card shadow-sm h-100 border-danger">
                         <div class="card-body">
                             <h6 class="text-muted">Food Waste (Expired Ingredients)</h6>
-                            <% if (typeof foodWasteItems !== 'undefined' && foodWasteItems.length > 0) { %>
+                            <% if (foodWasteItems && foodWasteItems.length > 0) { %>
                                 <canvas id="foodWasteChart" height="220"></canvas>
                             <% } else { %>
                                 <p class="mb-0 text-muted">No food waste right now — nothing has expired.</p>
@@ -124,7 +124,7 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Pending Expiry Requests</h6>
-                            <% if (typeof pendingExpiryRequests !== 'undefined' && pendingExpiryRequests.length > 0) { %>
+                            <% if (pendingExpiryRequests && pendingExpiryRequests.length > 0) { %>
                                 <div class="table-responsive">
                                     <table class="table table-striped table-hover">
                                         <thead>
@@ -146,12 +146,12 @@
                                                     <td><%= request.requestType %></td>
                                                     <td><%= request.requestedQuantity %></td>
                                                     <td>
-                                                        <% if (request.priority === 'High') { %>
-                                                            <span class="badge bg-danger">High</span>
-                                                        <% } else if (request.priority === 'Medium') { %>
-                                                            <span class="badge bg-warning text-dark">Medium</span>
+                                                        <% if (request.priority === 'Urgent') { %>
+                                                            <span class="badge bg-danger">Urgent</span>
+                                                        <% } else if (request.priority === 'High') { %>
+                                                            <span class="badge bg-warning text-dark">High</span>
                                                         <% } else { %>
-                                                            <span class="badge bg-secondary">Low</span>
+                                                            <span class="badge bg-secondary">Normal</span>
                                                         <% } %>
                                                     </td>
                                                     <td><span class="badge bg-warning text-dark">Pending</span></td>
@@ -171,7 +171,57 @@
                                     </table>
                                 </div>
                             <% } else { %>
-                                <p class="mb-0 text-muted">No pending requests.</p>
+                                <p class="mb-0 text-muted">No pending expiry requests.</p>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Restock Requests -->
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Pending Restock Requests</h6>
+                            <% if (pendingRestockRequests && pendingRestockRequests.length > 0) { %>
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Request ID</th>
+                                                <th>Ingredient</th>
+                                                <th>Requested Quantity</th>
+                                                <th>Requested By</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% pendingRestockRequests.forEach(function(request) { %>
+                                                <tr>
+                                                    <td><%= request.requestId %></td>
+                                                    <td><%= request.ingredientName %></td>
+                                                    <td><%= request.requestedQuantity %></td>
+                                                    <td><%= request.requestedBy %></td>
+                                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                                    <td>
+                                                        <div class="d-flex gap-2">
+                                                            <form action="/restockrequests/<%= request.requestId %>/accept" method="POST" class="m-0">
+                                                                <button type="submit" class="btn btn-sm btn-success">Accept</button>
+                                                            </form>
+                                                            <form action="/restockrequests/<%= request.requestId %>/decline" method="POST" class="m-0">
+                                                                <button type="submit" class="btn btn-sm btn-danger">Decline</button>
+                                                            </form>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            <% }); %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <% } else { %>
+                                <p class="mb-0 text-muted">No pending restock requests.</p>
                             <% } %>
                         </div>
                     </div>
@@ -188,7 +238,7 @@
     <% if (user) { %>
     <script>
         // Only run chart code if data exists
-        <% if (typeof mostUsedIngredients !== 'undefined' && mostUsedIngredients.length > 0) { %>
+        <% if (mostUsedIngredients && mostUsedIngredients.length > 0) { %>
             const mostUsedData = <%- JSON.stringify(mostUsedIngredients) %>;
             const pieColors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#af7ac1', '#ff9da7', '#9c755f', '#bab0ac'];
 
@@ -210,7 +260,7 @@
             });
         <% } %>
 
-        <% if (typeof leastUsedIngredients !== 'undefined' && leastUsedIngredients.length > 0) { %>
+        <% if (leastUsedIngredients && leastUsedIngredients.length > 0) { %>
             const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
             new Chart(document.getElementById('leastUsedChart'), {
                 type: 'pie',
@@ -230,7 +280,7 @@
             });
         <% } %>
 
-        <% if (typeof foodWasteItems !== 'undefined' && foodWasteItems.length > 0) { %>
+        <% if (foodWasteItems && foodWasteItems.length > 0) { %>
             const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
             new Chart(document.getElementById('foodWasteChart'), {
                 type: 'bar',
