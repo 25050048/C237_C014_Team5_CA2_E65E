@@ -648,18 +648,49 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
 
                             return res.redirect('/dashboard');
                         }
-return res.render('board', {
-                            user: req.session.user,
-                            totalAvailable,
-                            expiredCount,
-                            lowStockCount,
-                            foodWasteItems,
-                            mostUsedIngredients,
-                            leastUsedIngredients,
-                            pendingExpiryRequests: pendingRows,
-                            successMessages: req.flash('success'),
-                            errorMessages: req.flash('error')
-                        });
+
+                        // Pending restock requests for managers to accept or decline. (rizq)
+                        req.db.query(
+                            `
+                            SELECT
+                                rr.*,
+                                i.ingredientName
+                            FROM restock_requests rr
+                            LEFT JOIN ingredients i
+                                ON i.ingredientId = rr.ingredientId
+                            WHERE rr.status = 'Pending'
+                            ORDER BY rr.requestId DESC
+                            `,
+                            (restockErr, restockRows) => {
+                                if (restockErr) {
+                                    console.error(
+                                        'Board pending restock requests error:',
+                                        restockErr
+                                    );
+
+                                    req.flash(
+                                        'error',
+                                        'Could not load pending restock requests. Please try again.'
+                                    );
+
+                                    return res.redirect('/dashboard');
+                                }
+
+                                return res.render('board', {
+                                    user: req.session.user,
+                                    totalAvailable,
+                                    expiredCount,
+                                    lowStockCount,
+                                    foodWasteItems,
+                                    mostUsedIngredients,
+                                    leastUsedIngredients,
+                                    pendingExpiryRequests: pendingRows,
+                                    pendingRestockRequests: restockRows,
+                                    successMessages: req.flash('success'),
+                                    errorMessages: req.flash('error')
+                                });
+                            }
+                        );
                     }
                 );
             }
@@ -768,6 +799,161 @@ app.post(
         );
     }
 );
+// Accept restock request: restocks the ingredient's quantity AND marks the request Approved (rizq)
+app.post(
+    '/restockrequests/:id/accept',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid restock request.');
+            return res.redirect('/board');
+        }
+
+        // Look up the pending request first so we know how much to restock.
+        req.db.query(
+            `
+            SELECT *
+            FROM restock_requests
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (lookupErr, rows) => {
+                if (lookupErr) {
+                    console.error('Restock lookup error:', lookupErr);
+                    req.flash('error', 'Unable to load the restock request.');
+                    return res.redirect('/board');
+                }
+
+                if (rows.length === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                const restockRequest = rows[0];
+
+                // Add the requested quantity back into the ingredient's stock.
+                req.db.query(
+                    `
+                    UPDATE ingredients
+                    SET quantity = quantity + ?
+                    WHERE ingredientId = ?
+                    `,
+                    [restockRequest.requestedQuantity, restockRequest.ingredientId],
+                    (updateStockErr) => {
+                        if (updateStockErr) {
+                            console.error(
+                                'Restock stock update error:',
+                                updateStockErr
+                            );
+                            req.flash(
+                                'error',
+                                'Unable to update ingredient stock.'
+                            );
+                            return res.redirect('/board');
+                        }
+
+                        // Mark the request as Approved, but only if it's still Pending
+                        // (guards against double-submitting the form).
+                        req.db.query(
+                            `
+                            UPDATE restock_requests
+                            SET status = 'Approved'
+                            WHERE requestId = ?
+                              AND status = 'Pending'
+                            `,
+                            [requestId],
+                            (updateStatusErr, result) => {
+                                if (updateStatusErr) {
+                                    console.error(
+                                        'Restock status update error:',
+                                        updateStatusErr
+                                    );
+                                    req.flash(
+                                        'error',
+                                        'Stock was updated but the request status could not be saved.'
+                                    );
+                                    return res.redirect('/board');
+                                }
+
+                                if (result.affectedRows === 0) {
+                                    req.flash(
+                                        'error',
+                                        'Request not found or already processed.'
+                                    );
+                                    return res.redirect('/board');
+                                }
+
+                                req.flash(
+                                    'success',
+                                    'Restock request accepted and stock updated.'
+                                );
+                                return res.redirect('/board');
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    }
+);
+
+
+// Decline restock request: just marks the request Rejected, no stock change (rizq)
+app.post(
+    '/restockrequests/:id/decline',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid restock request.');
+            return res.redirect('/board');
+        }
+
+        req.db.query(
+            `
+            UPDATE restock_requests
+            SET status = 'Rejected'
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (error, result) => {
+                if (error) {
+                    console.error('Decline restock request error:', error);
+                    req.flash(
+                        'error',
+                        'Unable to decline the restock request.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                if (result.affectedRows === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                req.flash(
+                    'success',
+                    'Restock request declined.'
+                );
+                return res.redirect('/board');
+            }
+        );
+    }
+);
+
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
