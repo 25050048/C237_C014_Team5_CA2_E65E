@@ -157,6 +157,51 @@
                     </div>
                 </div>
             </div>
+            <!-- Pending restock requests: manager can accept or decline directly here -->
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Pending Restock Requests</h6>
+                            <% if (pendingRestockRequests.length === 0) { %>
+                                <p class="mb-0">No pending restock requests.</p>
+                            <% } else { %>
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Request ID</th>
+                                            <th>Ingredient</th>
+                                            <th>Requested Quantity</th>
+                                            <th>Requested By</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% pendingRestockRequests.forEach(function(request) { %>
+                                            <tr>
+                                                <td><%= request.requestId %></td>
+                                                <td><%= request.ingredientName %></td>
+                                                <td><%= request.requestedQuantity %></td>
+                                                <td><%= request.requestedBy %></td>
+                                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                                <td class="d-flex gap-2">
+                                                    <form action="/restockrequests/<%= request.requestId %>/accept" method="POST" class="m-0">
+                                                        <button type="submit" class="btn btn-sm btn-success">Accept</button>
+                                                    </form>
+                                                    <form action="/restockrequests/<%= request.requestId %>/decline" method="POST" class="m-0">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Decline</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
         <% } %>
 
     </main>
