@@ -540,8 +540,9 @@ app.post('/updateIngredient/:id', checkAuthenticated, checkSuperAdmin, ingredien
         }
     );
 });
-
-// Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
+// ============================================
+// BOARD ROUTE - Manager Dashboard (rizq)
+// ============================================
 app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
         if (err) {
@@ -557,403 +558,387 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
         const totalAvailable = results.reduce((sum, item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
-
             const isExpired = expiry < today;
-
-            return isExpired ? sum : sum + Number(item.quantity || 0);
+            return isExpired ? sum : sum + item.quantity;
         }, 0);
 
-        // Count how many ingredient records are expired.
+        // Count expired ingredients (by number of unique ingredients, not total quantity)
         const expiredCount = results.filter((item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
-
             return expiry < today;
         }).length;
 
-        // Count how many ingredient records are low stock.
-        const lowStockCount = results.filter(
-            (item) => Number(item.quantity) <= Number(item.minimumStock)
-        ).length;
+        const lowStockCount = results.filter((item) => item.quantity <= item.minimumStock).length;
 
-        // Expired ingredients = food waste.
-        const foodWasteItems = results
-            .filter((item) => {
-                const expiry = new Date(item.expiryDate);
-                expiry.setHours(0, 0, 0, 0);
+        // Pass all data to the view
+        res.render('board', { 
+            user: req.session.user, 
+            totalAvailable, 
+            expiredCount, 
+            lowStockCount,
+            mostUsedIngredients: [],
+            leastUsedIngredients: [],
+            foodWasteItems: [],
+            pendingExpiryRequests: [],
+            messages: req.flash('success'),
+            errors: req.flash('error')
+        });
+    });
+});
 
-                return expiry < today;
-            })
-            .map((item) => ({
-                ingredientName: item.ingredientName,
-                quantity: Number(item.quantity) || 0,
-                unit: item.unit || ''
-            }))
-            .sort((a, b) => b.quantity - a.quantity);
+// ============================================
+// LOGOUT ROUTE (Jun Yuan)
+// ============================================
+app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/');
+});
 
-        // Most / least used ingredients.
-        req.db.query(
-            `
+// ============================================
+// DASHBOARD ROUTE - Chef Only (Tassie)
+// ============================================
+app.get('/dashboard', requireLogin, checkChef, async (req, res) => {
+    try {
+        const [totalResults] = await db.promise().query(`
+            SELECT COUNT(*) AS totalIngredients
+            FROM ingredients
+        `);
+
+        const [lowStockIngredients] = await db.promise().query(`
             SELECT
-                i.ingredientName,
-                COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
-            FROM ingredients i
-            LEFT JOIN ingredient_usage u
-                ON u.ingredientId = i.ingredientId
-            GROUP BY i.ingredientId, i.ingredientName
-            ORDER BY totalUsed DESC
-            `,
-            (usageErr, usageRows) => {
-                if (usageErr) {
-                    console.error('Board usage error:', usageErr);
-                    req.flash(
-                        'error',
-                        'Could not load ingredient usage stats. Please try again.'
-                    );
-                    return res.redirect('/dashboard');
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE quantity <= minimumStock
+            ORDER BY quantity ASC
+        `);
+
+        const [expiredIngredients] = await db.promise().query(`
+            SELECT
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE expiryDate < CURDATE()
+            ORDER BY expiryDate ASC
+        `);
+
+        const [expiringSoonIngredients] = await db.promise().query(`
+            SELECT
+                ingredientId,
+                ingredientName,
+                quantity,
+                unit,
+                minimumStock,
+                expiryDate
+            FROM ingredients
+            WHERE expiryDate >= CURDATE()
+              AND expiryDate <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            ORDER BY expiryDate ASC
+        `);
+
+        res.render('dashboard', {
+            user: req.session.user || null,
+            totalIngredients: totalResults[0].totalIngredients,
+            lowStockCount: lowStockIngredients.length,
+            expiredCount: expiredIngredients.length,
+            expiringSoonCount: expiringSoonIngredients.length,
+            lowStockIngredients,
+            expiredIngredients,
+            expiringSoonIngredients
+        });
+
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        res.status(500).send(`
+            <div style="font-family: Arial; padding: 40px;">
+                <h1>Dashboard database error</h1>
+                <p>${error.message}</p>
+                <a href="/">Return home</a>
+            </div>
+        `);
+    }
+});
+
+// ============================================
+// SEARCH & FILTER ROUTE (Tara)
+// ============================================
+app.get('/search', requireLogin, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const category = req.query.category || '';
+        const storage = req.query.storage || '';
+        const expiry = req.query.expiry || '';
+        const sort = req.query.sort || '';
+
+        let sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (search) {
+            sql += ` AND ingredientName LIKE ?`;
+            params.push(`%${search}%`);
+        }
+        if (category) {
+            sql += ` AND category = ?`;
+            params.push(category);
+        }
+        if (storage) {
+            sql += ` AND storageLocation = ?`;
+            params.push(storage);
+        }
+        if (expiry === 'expired') {
+            sql += ` AND expiryDate < CURDATE()`;
+        } else if (expiry === '3days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
+        } else if (expiry === '7days') {
+            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
+        }
+
+        if (sort === 'expiry_desc') {
+            sql += ` ORDER BY expiryDate DESC`;
+        } else if (sort === 'name_asc') {
+            sql += ` ORDER BY ingredientName ASC`;
+        } else if (sort === 'newest') {
+            sql += ` ORDER BY createdAt DESC`;
+        } else {
+            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
+        }
+
+        const [items] = await db.promise().query(sql, params);
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        );
+        const [storageRows] = await db.promise().query(
+            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+        );
+
+        res.render('search', {
+            user: req.session.user,
+            items,
+            categories: categoryRows.map(r => r.category),
+            storageOptions: storageRows.map(r => r.storageLocation),
+            search,
+            selectedCategory: category,
+            selectedStorage: storage,
+            selectedExpiry: expiry,
+            selectedSort: sort
+        });
+    } catch (error) {
+        console.error('Search error:', error);
+        req.flash('error', 'Something went wrong while searching. Please try again.');
+        res.redirect('/dashboard');
+    }
+});
+
+// ============================================
+// EXPIRING SOON ROUTE (Tara)
+// ============================================
+app.get('/expiring', requireLogin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+            ORDER BY expiryDate ASC
+        `;
+        const [items] = await db.promise().query(sql);
+        res.render('expiring', { user: req.session.user, items });
+    } catch (error) {
+        console.error('Expiring error:', error);
+        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
+        res.redirect('/dashboard');
+    }
+});
+
+// ============================================
+// INGREDIENT USAGE - Display Form (Sean)
+// ============================================
+app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
+    const sql = `
+        SELECT
+            ingredientId,
+            ingredientName,
+            quantity,
+            unit
+        FROM ingredients
+        ORDER BY ingredientName ASC
+    `;
+
+    req.db.query(sql, (err, ingredients) => {
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Unable to load ingredients.');
+            return res.redirect('/dashboard');
+        }
+
+        res.render('ingredientUsage', {
+            user: req.session.user,
+            ingredients,
+            messages: req.flash('success'),
+            errors: req.flash('error')
+        });
+    });
+});
+
+// ============================================
+// INGREDIENT USAGE - Record Usage (Sean)
+// ============================================
+app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
+    const ingredientId = req.body.ingredientId;
+    const quantityUsed = parseFloat(req.body.quantityUsed);
+    const remarks = req.body.remarks;
+    const staffId = req.session.user.staffId;
+
+    if (!ingredientId || isNaN(quantityUsed) || quantityUsed <= 0) {
+        req.flash('error', 'Please enter a valid quantity.');
+        return res.redirect('/ingredient-usage');
+    }
+
+    const ingredientSQL = `
+        SELECT *
+        FROM ingredients
+        WHERE ingredientId = ?
+    `;
+
+    req.db.query(ingredientSQL, [ingredientId], (err, ingredientResult) => {
+        if (err) {
+            console.error(err);
+            req.flash('error', 'Database error.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        if (ingredientResult.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const ingredient = ingredientResult[0];
+
+        if (quantityUsed > ingredient.quantity) {
+            req.flash('error', 'Quantity used exceeds available stock.');
+            return res.redirect('/ingredient-usage');
+        }
+
+        const usageSQL = `
+            INSERT INTO ingredient_usage
+            (ingredientId, staffId, quantityUsed, remarks)
+            VALUES (?, ?, ?, ?)
+        `;
+
+        req.db.query(
+            usageSQL,
+            [ingredientId, staffId, quantityUsed, remarks],
+            (err) => {
+                if (err) {
+                    console.error(err);
+                    req.flash('error', 'Unable to record ingredient usage.');
+                    return res.redirect('/ingredient-usage');
                 }
 
-                const usedRows = usageRows.filter(
-                    (row) => Number(row.totalUsed) > 0
-                );
+                const newQuantity = ingredient.quantity - quantityUsed;
 
-                const mostUsedIngredients = usedRows.slice(0, 5);
-                const leastUsedIngredients = [...usedRows]
-                    .reverse()
-                    .slice(0, 5);
+                const updateSQL = `
+                    UPDATE ingredients
+                    SET quantity = ?
+                    WHERE ingredientId = ?
+                `;
 
-                // Pending expiry requests for managers to approve or reject.
                 req.db.query(
-                    `
-                    SELECT
-                        er.*,
-                        i.ingredientName
-                    FROM expiry_requests er
-                    LEFT JOIN ingredients i
-                        ON i.ingredientId = er.ingredientId
-                    WHERE er.status = 'Pending'
-                    ORDER BY er.createdAt DESC
-                    `,
-                    (pendingErr, pendingRows) => {
-                        if (pendingErr) {
-                            console.error(
-                                'Board pending requests error:',
-                                pendingErr
-                            );
-
-                            req.flash(
-                                'error',
-                                'Could not load pending expiry requests. Please try again.'
-                            );
-
-                            return res.redirect('/dashboard');
+                    updateSQL,
+                    [newQuantity, ingredientId],
+                    (err) => {
+                        if (err) {
+                            console.error(err);
+                            req.flash('error', 'Unable to update ingredient stock.');
+                            return res.redirect('/ingredient-usage');
                         }
 
-                        // Pending restock requests for managers to accept or decline. (rizq)
-                        req.db.query(
-                            `
-                            SELECT
-                                rr.*,
-                                i.ingredientName
-                            FROM restock_requests rr
-                            LEFT JOIN ingredients i
-                                ON i.ingredientId = rr.ingredientId
-                            WHERE rr.status = 'Pending'
-                            ORDER BY rr.requestId DESC
-                            `,
-                            (restockErr, restockRows) => {
-                                if (restockErr) {
-                                    console.error(
-                                        'Board pending restock requests error:',
-                                        restockErr
-                                    );
+                        if (newQuantity <= ingredient.minimumStock) {
+                            const checkSQL = `
+                                SELECT *
+                                FROM restock_requests
+                                WHERE ingredientId = ?
+                                AND status = 'Pending'
+                            `;
 
-                                    req.flash(
-                                        'error',
-                                        'Could not load pending restock requests. Please try again.'
-                                    );
+                            req.db.query(
+                                checkSQL,
+                                [ingredientId],
+                                (err, pendingResult) => {
+                                    if (err) {
+                                        console.error(err);
+                                        req.flash('error', 'Unable to check restock requests.');
+                                        return res.redirect('/ingredient-usage');
+                                    }
 
-                                    return res.redirect('/dashboard');
+                                    if (pendingResult.length === 0) {
+                                        const requestQty = ingredient.minimumStock * 2;
+
+                                        const requestSQL = `
+                                            INSERT INTO restock_requests
+                                            (
+                                                ingredientId,
+                                                requestedBy,
+                                                requestedQuantity,
+                                                status
+                                            )
+                                            VALUES (?, ?, ?, 'Pending')
+                                        `;
+
+                                        req.db.query(
+                                            requestSQL,
+                                            [ingredientId, staffId, requestQty],
+                                            (err) => {
+                                                if (err) {
+                                                    console.error(err);
+                                                    req.flash('error', 'Usage recorded but restock request could not be created.');
+                                                    return res.redirect('/ingredient-usage');
+                                                }
+
+                                                req.flash(
+                                                    'success',
+                                                    'Ingredient usage recorded. Restocking request created automatically.'
+                                                );
+
+                                                return res.redirect('/ingredient-usage');
+                                            }
+                                        );
+                                    } else {
+                                        req.flash(
+                                            'success',
+                                            'Ingredient usage recorded successfully.'
+                                        );
+
+                                        return res.redirect('/ingredient-usage');
+                                    }
                                 }
+                            );
+                        } else {
+                            req.flash(
+                                'success',
+                                'Ingredient usage recorded successfully.'
+                            );
 
-                                return res.render('board', {
-                                    user: req.session.user,
-                                    totalAvailable,
-                                    expiredCount,
-                                    lowStockCount,
-                                    foodWasteItems,
-                                    mostUsedIngredients,
-                                    leastUsedIngredients,
-                                    pendingExpiryRequests: pendingRows,
-                                    pendingRestockRequests: restockRows,
-                                    successMessages: req.flash('success'),
-                                    errorMessages: req.flash('error')
-                                });
-                            }
-                        );
+                            return res.redirect('/ingredient-usage');
+                        }
                     }
                 );
             }
         );
     });
 });
-
-
-// Approve expiry request
-app.post(
-    '/expiryrequests/:id/approve',
-    checkAuthenticated,
-    checkManager,
-    (req, res) => {
-        const requestId = Number(req.params.id);
-
-        if (!Number.isInteger(requestId)) {
-            req.flash('error', 'Invalid expiry request.');
-            return res.redirect('/board');
-        }
-
-        req.db.query(
-            `
-            UPDATE expiry_requests
-            SET status = 'Approved'
-            WHERE requestId = ?
-              AND status = 'Pending'
-            `,
-            [requestId],
-            (error, result) => {
-                if (error) {
-                    console.error('Approve expiry request error:', error);
-                    req.flash(
-                        'error',
-                        'Unable to approve the expiry request.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                if (result.affectedRows === 0) {
-                    req.flash(
-                        'error',
-                        'Request not found or already processed.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                req.flash(
-                    'success',
-                    'Expiry request approved successfully.'
-                );
-
-                return res.redirect('/board');
-            }
-        );
-    }
-);
-
-
-// Reject expiry request
-app.post(
-    '/expiryrequests/:id/reject',
-    checkAuthenticated,
-    checkManager,
-    (req, res) => {
-        const requestId = Number(req.params.id);
-
-        if (!Number.isInteger(requestId)) {
-            req.flash('error', 'Invalid expiry request.');
-            return res.redirect('/board');
-        }
-
-        req.db.query(
-            `
-            UPDATE expiry_requests
-            SET status = 'Rejected'
-            WHERE requestId = ?
-              AND status = 'Pending'
-            `,
-            [requestId],
-            (error, result) => {
-                if (error) {
-                    console.error('Reject expiry request error:', error);
-                    req.flash(
-                        'error',
-                        'Unable to reject the expiry request.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                if (result.affectedRows === 0) {
-                    req.flash(
-                        'error',
-                        'Request not found or already processed.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                req.flash(
-                    'success',
-                    'Expiry request rejected successfully.'
-                );
-
-                return res.redirect('/board');
-            }
-        );
-    }
-);
-// Accept restock request: restocks the ingredient's quantity AND marks the request Approved (rizq)
-app.post(
-    '/restockrequests/:id/accept',
-    checkAuthenticated,
-    checkManager,
-    (req, res) => {
-        const requestId = Number(req.params.id);
-
-        if (!Number.isInteger(requestId)) {
-            req.flash('error', 'Invalid restock request.');
-            return res.redirect('/board');
-        }
-
-        // Look up the pending request first so we know how much to restock.
-        req.db.query(
-            `
-            SELECT *
-            FROM restock_requests
-            WHERE requestId = ?
-              AND status = 'Pending'
-            `,
-            [requestId],
-            (lookupErr, rows) => {
-                if (lookupErr) {
-                    console.error('Restock lookup error:', lookupErr);
-                    req.flash('error', 'Unable to load the restock request.');
-                    return res.redirect('/board');
-                }
-
-                if (rows.length === 0) {
-                    req.flash(
-                        'error',
-                        'Request not found or already processed.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                const restockRequest = rows[0];
-
-                // Add the requested quantity back into the ingredient's stock.
-                req.db.query(
-                    `
-                    UPDATE ingredients
-                    SET quantity = quantity + ?
-                    WHERE ingredientId = ?
-                    `,
-                    [restockRequest.requestedQuantity, restockRequest.ingredientId],
-                    (updateStockErr) => {
-                        if (updateStockErr) {
-                            console.error(
-                                'Restock stock update error:',
-                                updateStockErr
-                            );
-                            req.flash(
-                                'error',
-                                'Unable to update ingredient stock.'
-                            );
-                            return res.redirect('/board');
-                        }
-
-                        // Mark the request as Approved, but only if it's still Pending
-                        // (guards against double-submitting the form).
-                        req.db.query(
-                            `
-                            UPDATE restock_requests
-                            SET status = 'Approved'
-                            WHERE requestId = ?
-                              AND status = 'Pending'
-                            `,
-                            [requestId],
-                            (updateStatusErr, result) => {
-                                if (updateStatusErr) {
-                                    console.error(
-                                        'Restock status update error:',
-                                        updateStatusErr
-                                    );
-                                    req.flash(
-                                        'error',
-                                        'Stock was updated but the request status could not be saved.'
-                                    );
-                                    return res.redirect('/board');
-                                }
-
-                                if (result.affectedRows === 0) {
-                                    req.flash(
-                                        'error',
-                                        'Request not found or already processed.'
-                                    );
-                                    return res.redirect('/board');
-                                }
-
-                                req.flash(
-                                    'success',
-                                    'Restock request accepted and stock updated.'
-                                );
-                                return res.redirect('/board');
-                            }
-                        );
-                    }
-                );
-            }
-        );
-    }
-);
-
-
-// Decline restock request: just marks the request Rejected, no stock change (rizq)
-app.post(
-    '/restockrequests/:id/decline',
-    checkAuthenticated,
-    checkManager,
-    (req, res) => {
-        const requestId = Number(req.params.id);
-
-        if (!Number.isInteger(requestId)) {
-            req.flash('error', 'Invalid restock request.');
-            return res.redirect('/board');
-        }
-
-        req.db.query(
-            `
-            UPDATE restock_requests
-            SET status = 'Rejected'
-            WHERE requestId = ?
-              AND status = 'Pending'
-            `,
-            [requestId],
-            (error, result) => {
-                if (error) {
-                    console.error('Decline restock request error:', error);
-                    req.flash(
-                        'error',
-                        'Unable to decline the restock request.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                if (result.affectedRows === 0) {
-                    req.flash(
-                        'error',
-                        'Request not found or already processed.'
-                    );
-                    return res.redirect('/board');
-                }
-
-                req.flash(
-                    'success',
-                    'Restock request declined.'
-                );
-                return res.redirect('/board');
-            }
-        );
-    }
-);
-
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
