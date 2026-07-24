@@ -1,4 +1,3 @@
-// rizq
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -141,13 +140,26 @@
                                                 <td><%= request.priority %></td>
                                                 <td><span class="badge bg-warning text-dark">Pending</span></td>
                                                 <td class="d-flex gap-2">
-                                                    <form action="/expiryrequests/<%= request.requestId %>/approve" method="POST" class="m-0">
-                                                        <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                                                    </form>
-                                                    <form action="/expiryrequests/<%= request.requestId %>/decline" method="POST" class="m-0">
-                                                        <button type="submit" class="btn btn-sm btn-danger">Decline</button>
-                                                    </form>
-                                                </td>
+                                                    <form
+                                                    action="/expiryrequests/<%= request.requestId %>/approve"
+                                                    method="POST"
+                                                    class="d-inline"
+                                                >
+                                                    <button type="submit" class="btn btn-success btn-sm">
+                                                        Approve
+                                                    </button>
+                                                </form>
+
+                                                <form
+                                                    action="/expiryrequests/<%= request.requestId %>/reject"
+                                                    method="POST"
+                                                    class="d-inline"
+                                                >
+                                                    <button type="submit" class="btn btn-danger btn-sm">
+                                                        Reject
+                                                    </button>
+                                                </form>
+                                                                                                </td>
                                             </tr>
                                         <% }); %>
                                     </tbody>

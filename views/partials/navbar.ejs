@@ -1,36 +1,184 @@
 <nav class="site-navbar">
-    <a class="navbar-brand-plain" href="/">Pantry</a>
+
+    <a class="navbar-brand-plain" href="/">
+        Pantry
+    </a>
+
     <div class="navbar-links">
-        <a class="nav-tab" data-path="/" href="/">Home</a>
+
+        <a class="nav-tab" data-path="/" href="/">
+            Home
+        </a>
+
         <% if (typeof user !== 'undefined' && user) { %>
+
+            <!-- CHEF NAVBAR -->
             <% if (user.role === 'Chef') { %>
-                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">Inventory Board</a>
-            <% } else { %>
-                <% if (user.role === 'SuperAdmin') { %>
-                    <a class="nav-tab" data-path="/register-manager" href="/register-manager">Register Manager</a>
-                    <a class="nav-tab" data-path="/user-management" href="/user-management">User Management</a>
-                <% } %>
-                <a class="nav-tab" data-path="/board" href="/board">Admin Dashboard</a>
-                <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">Inventory Board</a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/dashboard"
+                    href="/dashboard/overview"
+                >
+                    Kitchen Dashboard
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/expirymonitoring"
+                    href="/expirymonitoring"
+                >
+                    Expiry Monitoring
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/ingredient-usage"
+                    href="/ingredient-usage"
+                >
+                    Record Usage
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/expiryrequests"
+                    href="/expiryrequests"
+                >
+                    Stock Requests
+                </a>
+
+            <!-- MANAGER NAVBAR -->
+            <% } else if (user.role === 'Manager') { %>
+
+                <a
+                    class="nav-tab"
+                    data-path="/board"
+                    href="/board"
+                >
+                    Manager Dashboard
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/manage-inventory"
+                    href="/manage-inventory"
+                >
+                    Manage Inventory
+                </a>
+
+
+                <a
+                    class="nav-tab"
+                    data-path="/expiryrequests"
+                    href="/expiryrequests"
+                >
+                    Stock Requests
+                </a>
+
+            <!-- SUPERADMIN NAVBAR -->
+            <% } else if (user.role === 'SuperAdmin') { %>
+
+                <a
+                    class="nav-tab"
+                    data-path="/board"
+                    href="/board"
+                >
+                    Admin Dashboard
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/manage-inventory"
+                    href="/manage-inventory"
+                >
+                    Manage Inventory
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/user-management"
+                    href="/user-management"
+                >
+                    User Management
+                </a>
+
+                <a
+                    class="nav-tab"
+                    data-path="/register-manager"
+                    href="/register-manager"
+                >
+                    Register Manager
+                </a>
+
             <% } %>
-            <a class="nav-avatar" href="/profile" title="Profile">
+
+            <!-- PROFILE ICON FOR ALL LOGGED-IN USERS -->
+            <a
+                class="nav-avatar"
+                href="/profile"
+                title="Profile"
+            >
+
                 <% if (user.profilePicture) { %>
-                    <img src="/images/<%= user.profilePicture %>" alt="Profile" class="nav-avatar-img">
+
+                    <img
+                        src="/images/<%= user.profilePicture %>"
+                        alt="Profile"
+                        class="nav-avatar-img"
+                    >
+
                 <% } else { %>
-                    <span class="nav-avatar-fallback"><%= user.fullName.charAt(0).toUpperCase() %></span>
+
+                    <span class="nav-avatar-fallback">
+                        <%= user.fullName
+                            ? user.fullName.charAt(0).toUpperCase()
+                            : 'U'
+                        %>
+                    </span>
+
                 <% } %>
+
             </a>
+
         <% } else { %>
-            <a class="nav-tab" data-path="/register" href="/register">Register</a>
-            <a class="nav-tab" data-path="/login" href="/login">Login</a>
+
+            <!-- NAVBAR FOR USERS WHO ARE NOT LOGGED IN -->
+            <a
+                class="nav-tab"
+                data-path="/register"
+                href="/register"
+            >
+                Register
+            </a>
+
+            <a
+                class="nav-tab"
+                data-path="/login"
+                href="/login"
+            >
+                Login
+            </a>
+
         <% } %>
+
     </div>
+
 </nav>
+
 <script>
     (function () {
-        var path = window.location.pathname;
-        document.querySelectorAll('.nav-tab').forEach(function (link) {
-            if (link.getAttribute('data-path') === path) {
+        const currentPath = window.location.pathname;
+
+        document.querySelectorAll('.nav-tab').forEach(link => {
+            const linkPath = link.getAttribute('data-path');
+
+            if (
+                currentPath === linkPath ||
+                (
+                    linkPath !== '/' &&
+                    currentPath.startsWith(linkPath + '/')
+                )
+            ) {
                 link.classList.add('active');
             }
         });

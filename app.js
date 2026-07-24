@@ -324,7 +324,7 @@ app.post('/user-management/:id/reactivate', checkAuthenticated, checkSuperAdmin,
     });
 });
 
-// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only(Tassie))
+// Manage Inventory: search/filter + stats, backed by the `ingredients` table - Manager/SuperAdmin only))
 app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) => {
     try {
         const search = req.query.search || '';
@@ -558,25 +558,31 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
         const totalAvailable = results.reduce((sum, item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
+
             const isExpired = expiry < today;
-            return isExpired ? sum : sum + item.quantity;
+
+            return isExpired ? sum : sum + Number(item.quantity || 0);
         }, 0);
 
-        // Below: counted by number of ingredients (unique ingredientId rows),
-        // NOT by summing quantity — each ingredient counts as 1, regardless of how much stock it has.
+        // Count how many ingredient records are expired.
         const expiredCount = results.filter((item) => {
             const expiry = new Date(item.expiryDate);
             expiry.setHours(0, 0, 0, 0);
+
             return expiry < today;
         }).length;
 
-        const lowStockCount = results.filter((item) => item.quantity <= item.minimumStock).length;
+        // Count how many ingredient records are low stock.
+        const lowStockCount = results.filter(
+            (item) => Number(item.quantity) <= Number(item.minimumStock)
+        ).length;
 
-        // Expired ingredients = food waste. Grab their quantity/unit for the waste bar chart. (rizq)
+        // Expired ingredients = food waste.
         const foodWasteItems = results
             .filter((item) => {
                 const expiry = new Date(item.expiryDate);
                 expiry.setHours(0, 0, 0, 0);
+
                 return expiry < today;
             })
             .map((item) => ({
@@ -586,56 +592,327 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
             }))
             .sort((a, b) => b.quantity - a.quantity);
 
-        // Most / least used ingredients, based on all recorded ingredient usage.
-        req.db.query(`
-            SELECT i.ingredientName, COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
+        // Most / least used ingredients.
+        req.db.query(
+            `
+            SELECT
+                i.ingredientName,
+                COALESCE(SUM(u.quantityUsed), 0) AS totalUsed
             FROM ingredients i
-            LEFT JOIN ingredient_usage u ON u.ingredientId = i.ingredientId
+            LEFT JOIN ingredient_usage u
+                ON u.ingredientId = i.ingredientId
             GROUP BY i.ingredientId, i.ingredientName
             ORDER BY totalUsed DESC
-        `, (usageErr, usageRows) => {
-            if (usageErr) {
-                console.error('Board usage error:', usageErr);
-                req.flash('error', 'Could not load ingredient usage stats. Please try again.');
-                return res.redirect('/dashboard');
-            }
-            //rizq
-            const usedRows = usageRows.filter((row) => row.totalUsed > 0);
-
-            const mostUsedIngredients = usedRows.slice(0, 5);
-            const leastUsedIngredients = [...usedRows].reverse().slice(0, 5);
-
-            // Pending expiry requests, so managers can approve/decline right from the board. (rizq)
-            req.db.query(`
-                SELECT er.*, i.ingredientName
-                FROM expiry_requests er
-                LEFT JOIN ingredients i ON i.ingredientId = er.ingredientId
-                WHERE er.status = 'Pending'
-                ORDER BY er.createdAt DESC
-            `, (pendingErr, pendingRows) => {
-                if (pendingErr) {
-                    console.error('Board pending requests error:', pendingErr);
-                    req.flash('error', 'Could not load pending expiry requests. Please try again.');
+            `,
+            (usageErr, usageRows) => {
+                if (usageErr) {
+                    console.error('Board usage error:', usageErr);
+                    req.flash(
+                        'error',
+                        'Could not load ingredient usage stats. Please try again.'
+                    );
                     return res.redirect('/dashboard');
                 }
 
-                res.render('board', {
-                    user: req.session.user,
-                    totalAvailable,
-                    expiredCount,
-                    lowStockCount,
-                    foodWasteItems,
-                    mostUsedIngredients,
-                    leastUsedIngredients,
-                    pendingExpiryRequests: pendingRows,
-                    successMessages: req.flash('success'),
-                    errorMessages: req.flash('error')
-                });
-            });
-        });
+                const usedRows = usageRows.filter(
+                    (row) => Number(row.totalUsed) > 0
+                );
+
+                const mostUsedIngredients = usedRows.slice(0, 5);
+                const leastUsedIngredients = [...usedRows]
+                    .reverse()
+                    .slice(0, 5);
+
+                // Pending expiry requests for managers to approve or reject.
+                req.db.query(
+                    `
+                    SELECT
+                        er.*,
+                        i.ingredientName
+                    FROM expiry_requests er
+                    LEFT JOIN ingredients i
+                        ON i.ingredientId = er.ingredientId
+                    WHERE er.status = 'Pending'
+                    ORDER BY er.createdAt DESC
+                    `,
+                    (pendingErr, pendingRows) => {
+                        if (pendingErr) {
+                            console.error(
+                                'Board pending requests error:',
+                                pendingErr
+                            );
+
+                            req.flash(
+                                'error',
+                                'Could not load pending expiry requests. Please try again.'
+                            );
+
+                            return res.redirect('/dashboard');
+                        }
+
+                        return res.render('board', {
+                            user: req.session.user,
+                            totalAvailable,
+                            expiredCount,
+                            lowStockCount,
+                            foodWasteItems,
+                            mostUsedIngredients,
+                            leastUsedIngredients,
+                            pendingExpiryRequests: pendingRows,
+                            successMessages: req.flash('success'),
+                            errorMessages: req.flash('error')
+                        });
+                    }
+                );
+            }
+        );
     });
 });
 
+
+// Approve expiry request
+app.post(
+    '/expiryrequests/:id/approve',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid expiry request.');
+            return res.redirect('/board');
+        }
+
+        req.db.query(
+            `
+            UPDATE expiry_requests
+            SET status = 'Approved'
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (error, result) => {
+                if (error) {
+                    console.error('Approve expiry request error:', error);
+                    req.flash(
+                        'error',
+                        'Unable to approve the expiry request.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                if (result.affectedRows === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                req.flash(
+                    'success',
+                    'Expiry request approved successfully.'
+                );
+
+                return res.redirect('/board');
+            }
+        );
+    }
+);
+
+
+// Reject expiry request
+app.post(
+    '/expiryrequests/:id/reject',
+    checkAuthenticated,
+    checkManager,
+    (req, res) => {
+        const requestId = Number(req.params.id);
+
+        if (!Number.isInteger(requestId)) {
+            req.flash('error', 'Invalid expiry request.');
+            return res.redirect('/board');
+        }
+
+        req.db.query(
+            `
+            UPDATE expiry_requests
+            SET status = 'Rejected'
+            WHERE requestId = ?
+              AND status = 'Pending'
+            `,
+            [requestId],
+            (error, result) => {
+                if (error) {
+                    console.error('Reject expiry request error:', error);
+                    req.flash(
+                        'error',
+                        'Unable to reject the expiry request.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                if (result.affectedRows === 0) {
+                    req.flash(
+                        'error',
+                        'Request not found or already processed.'
+                    );
+                    return res.redirect('/board');
+                }
+
+                req.flash(
+                    'success',
+                    'Expiry request rejected successfully.'
+                );
+
+                return res.redirect('/board');
+            }
+        );
+    }
+);
+// ============================================
+// SEARCH & FILTER ROUTE (Tara)
+// ============================================
+app.get('/search', requireLogin, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const category = req.query.category || '';
+        const storage = req.query.storage || '';
+        const expiry = req.query.expiry || '';
+        const sort = req.query.sort || '';
+
+        let sql = `
+            SELECT *,
+                   DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE 1 = 1
+        `;
+
+        const params = [];
+
+        // Search using the ingredient name
+        if (search) {
+            sql += ` AND ingredientName LIKE ?`;
+            params.push(`%${search}%`);
+        }
+
+        // Filter using category
+        if (category) {
+            sql += ` AND category = ?`;
+            params.push(category);
+        }
+
+        // Filter using storage location
+        if (storage) {
+            sql += ` AND storageLocation = ?`;
+            params.push(storage);
+        }
+
+        // Filter using expiry status
+        if (expiry === 'expired') {
+            sql += ` AND expiryDate < CURDATE()`;
+        } else if (expiry === '3days') {
+            sql += `
+                AND expiryDate BETWEEN CURDATE()
+                AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+            `;
+        } else if (expiry === '7days') {
+            sql += `
+                AND expiryDate BETWEEN CURDATE()
+                AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            `;
+        }
+
+        // Sort results
+        if (sort === 'expiry_desc') {
+            sql += ` ORDER BY expiryDate DESC`;
+        } else if (sort === 'name_asc') {
+            sql += ` ORDER BY ingredientName ASC`;
+        } else if (sort === 'newest') {
+            sql += ` ORDER BY createdAt DESC`;
+        } else {
+            sql += ` ORDER BY expiryDate ASC`;
+        }
+
+        const [items] = await db.promise().query(sql, params);
+
+        // Get category options for the dropdown
+        const [categoryRows] = await db.promise().query(`
+            SELECT DISTINCT category
+            FROM ingredients
+            WHERE category IS NOT NULL
+              AND category <> ''
+            ORDER BY category
+        `);
+
+        // Get storage-location options for the dropdown
+        const [storageRows] = await db.promise().query(`
+            SELECT DISTINCT storageLocation
+            FROM ingredients
+            WHERE storageLocation IS NOT NULL
+              AND storageLocation <> ''
+            ORDER BY storageLocation
+        `);
+
+        res.render('search', {
+            user: req.session.user,
+            items,
+            categories: categoryRows.map(row => row.category),
+            storageOptions: storageRows.map(row => row.storageLocation),
+            search,
+            selectedCategory: category,
+            selectedStorage: storage,
+            selectedExpiry: expiry,
+            selectedSort: sort
+        });
+
+    } catch (error) {
+        console.error('Search error:', error);
+
+        req.flash(
+            'error',
+            'Something went wrong while searching. Please try again.'
+        );
+
+        return res.redirect('/dashboard');
+    }
+});
+
+
+// ============================================
+// EXPIRING SOON ROUTE (Tara)
+// ============================================
+app.get('/expiring', requireLogin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT *,
+                   DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+            FROM ingredients
+            WHERE expiryDate <= DATE_ADD(
+                CURDATE(),
+                INTERVAL 3 DAY
+            )
+            ORDER BY expiryDate ASC
+        `;
+
+        const [items] = await db.promise().query(sql);
+
+        res.render('expiring', {
+            user: req.session.user,
+            items
+        });
+
+    } catch (error) {
+        console.error('Expiring error:', error);
+
+        req.flash(
+            'error',
+            'Something went wrong loading expiring items. Please try again.'
+        );
+
+        return res.redirect('/dashboard');
+    }
+});
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
@@ -800,7 +1077,7 @@ function runQuery(sql, values = []) {
 
 
 // =====================================================
-// KITCHEN DASHBOARD AND EXPIRY MONITORING
+// KITCHEN DASHBOARD AND EXPIRY MONITORING (Tassie)
 // =====================================================
 
 // Helper function for database queries
