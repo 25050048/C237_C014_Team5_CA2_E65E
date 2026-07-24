@@ -622,7 +622,114 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
         });
     });
 });
+// Helper: after an expiry request is approved/declined, mirror the outcome as a new
+// row in restock_requests. expiry_requests.requestedBy stores the requester's NAME,
+// but restock_requests.requestedBy stores a staffId, so we look it up via the staff
+// table. Falls back to the approving manager's own staffId if no name match is found. (rizq)
+function createRestockRequestFromExpiry(req, expiryRequest, status, callback) {
+    req.db.query(
+        `SELECT staffId FROM staff WHERE fullName = ? LIMIT 1`,
+        [expiryRequest.requestedBy],
+        (staffErr, staffRows) => {
+            if (staffErr) {
+                return callback(staffErr);
+            }
 
+            const requestedByStaffId = staffRows.length > 0
+                ? staffRows[0].staffId
+                : req.session.user.staffId;
+
+            req.db.query(
+                `INSERT INTO restock_requests (ingredientId, requestedBy, requestedQuantity, status)
+                 VALUES (?, ?, ?, ?)`,
+                [expiryRequest.ingredientId, requestedByStaffId, expiryRequest.requestedQuantity, status],
+                callback
+            );
+        }
+    );
+}
+
+// Approve a pending expiry request from the board (rizq)
+app.post('/expiryrequests/:id/approve', checkAuthenticated, checkManager, (req, res) => {
+    const requestId = req.params.id;
+
+    req.db.query(
+        `SELECT * FROM expiry_requests WHERE requestId = ?`,
+        [requestId],
+        (fetchErr, rows) => {
+            if (fetchErr || rows.length === 0) {
+                console.error('Approve expiry request fetch error:', fetchErr);
+                req.flash('error', 'Could not find that request.');
+                return res.redirect('/board');
+            }
+
+            const expiryRequest = rows[0];
+
+            req.db.query(
+                `UPDATE expiry_requests SET status = 'Approved' WHERE requestId = ?`,
+                [requestId],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Approve expiry request error:', updateErr);
+                        req.flash('error', 'Could not approve the request.');
+                        return res.redirect('/board');
+                    }
+
+                    createRestockRequestFromExpiry(req, expiryRequest, 'Approved', (restockErr) => {
+                        if (restockErr) {
+                            console.error('Create restock request error:', restockErr);
+                            req.flash('error', 'Request approved, but the restock request could not be created.');
+                            return res.redirect('/board');
+                        }
+                        req.flash('success', 'Request approved and sent to restocking requests.');
+                        res.redirect('/board');
+                    });
+                }
+            );
+        }
+    );
+});
+
+// Decline a pending expiry request from the board (rizq)
+app.post('/expiryrequests/:id/decline', checkAuthenticated, checkManager, (req, res) => {
+    const requestId = req.params.id;
+
+    req.db.query(
+        `SELECT * FROM expiry_requests WHERE requestId = ?`,
+        [requestId],
+        (fetchErr, rows) => {
+            if (fetchErr || rows.length === 0) {
+                console.error('Decline expiry request fetch error:', fetchErr);
+                req.flash('error', 'Could not find that request.');
+                return res.redirect('/board');
+            }
+
+            const expiryRequest = rows[0];
+
+            req.db.query(
+                `UPDATE expiry_requests SET status = 'Rejected' WHERE requestId = ?`,
+                [requestId],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Decline expiry request error:', updateErr);
+                        req.flash('error', 'Could not decline the request.');
+                        return res.redirect('/board');
+                    }
+
+                    createRestockRequestFromExpiry(req, expiryRequest, 'Rejected', (restockErr) => {
+                        if (restockErr) {
+                            console.error('Create restock request error:', restockErr);
+                            req.flash('error', 'Request declined, but the restock request could not be created.');
+                            return res.redirect('/board');
+                        }
+                        req.flash('success', 'Request declined.');
+                        res.redirect('/board');
+                    });
+                }
+            );
+        }
+    );
+});
 // Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
 req.session.destroy();
@@ -1074,7 +1181,8 @@ app.get(
             const ingredients = await loadIngredients();
             const expiryRequests = await loadExpiryRequests();
 
-            // Search & Filter widget (Tara)
+            // ==================[ TARA ]==================
+            // Search & Filter widget
             // Runs only when the widget's form has actually been submitted,
             // so the dashboard looks the same as before until a search/filter
             // is applied.
@@ -1138,10 +1246,10 @@ app.get(
                 const [rows] = await db.promise().query(sql, params);
                 searchResults = rows;
             }
-            // (END Tara)
+            // ================[ END TARA ]================
 
             const [categoryRows] = await db.promise().query(
-                `SELECT categoryName FROM categories ORDER BY categoryName ASC`
+                `SELECT categoryId, categoryName FROM categories ORDER BY categoryName ASC`
             );
             const [storageRows] = await db.promise().query(
                 `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
@@ -1269,10 +1377,11 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
                 recentRequests:
                     expiryRequests.slice(0, 5),
 
-    
-                // Search & Filter widget data (Tara)
+                // ==================[ TARA ]==================
+                // Search & Filter widget data
                 searchResults,
                 categories: categoryRows.map(r => r.categoryName),
+                categoryList: categoryRows,
                 storageOptions: storageRows.map(r => r.storageLocation),
                 searchTerm: search,
                 selectedCategory: filterCategory,
@@ -1280,7 +1389,7 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
                 selectedExpiry: filterExpiry,
                 selectedStock: filterStock,
                 selectedSort: sort,
-                // ( END Tara )
+                // ================[ END TARA ]================
 
                 successMessages:
                     req.flash('success'),
@@ -1875,11 +1984,12 @@ app.post(
 );
 
 
-
-
-// CATEGORY MANAGEMENT (Tara)
+// =====================================================
+// ==================[ TARA ]====================
+// CATEGORY MANAGEMENT
 // The search/filter widget on the Kitchen Operations dashboard also reads
 // from this table to populate its Category dropdown.
+// =====================================================
 
 // [GET] List all categories
 app.get('/categories', checkAuthenticated, async (req, res) => {
@@ -2025,7 +2135,7 @@ app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
         res.redirect('/categories');
     }
 });
-
+// ================[ END TARA ]================
 
 // [GET] Display Ingredient Usage Form (Sean)
 app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
