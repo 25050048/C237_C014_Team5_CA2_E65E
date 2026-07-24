@@ -388,24 +388,29 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
-//app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
-    //const ingredientId = req.params.id;
-    //const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
+app.get('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
 
-    //db.query(sql, [ingredientId], (err, results) => {
-        //if (err) {
-            //console.error('Load delete ingredient error:', err);
-            //req.flash('error', 'Unable to load delete confirmation.');
-            //return res.redirect('/manage-inventory');
-        //}
+    db.query(sql, [ingredientId], (err, results) => {
+        if (err) {
+            console.error('Load delete ingredient error:', err);
+            req.flash('error', 'Unable to load delete confirmation.');
+            return res.redirect('/manage-inventory');
+        }
 
-        //res.render('deleteOldIngredient', {
-            //user: req.session.user,
-            //ingredient: results.length > 0 ? results[0] : null,
-            //messages: req.flash('error')
-        //});
-    //});
-//});
+        if (results.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/manage-inventory');
+        }
+
+        res.render('deleteOldIngredient', {
+            user: req.session.user,
+            ingredient: results[0],
+            messages: req.flash('error')
+        });
+    });
+});
 
 // Delete ingredient route (Tong Sun)
 app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
@@ -416,7 +421,7 @@ app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res
         if (err) {
             console.error('Delete ingredient error:', err);
             req.flash('error', 'Unable to delete the ingredient.');
-            return res.redirect(`/deleteIngredient/${ingredientId}`);
+            return res.redirect(`/deleteOldIngredient/${ingredientId}`);
         }
 
         if (result.affectedRows === 0) {
