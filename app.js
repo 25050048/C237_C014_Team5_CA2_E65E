@@ -458,6 +458,7 @@ app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
+// Save New Ingredient details to database (Tong Sun)
 app.post('/addNewIngredient', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
     const name = String(req.body.name || '').trim();
     const category = String(req.body.category || '').trim();
@@ -499,6 +500,7 @@ app.post('/addNewIngredient', checkAuthenticated, checkManager, ingredientUpload
     );
 });
 
+// Update the changes made to an ingredient to the database (Tong Sun)
 app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
     const ingredientId = req.params.id;
     const name = String(req.body.name || '').trim();
