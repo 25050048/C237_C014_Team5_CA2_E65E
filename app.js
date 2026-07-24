@@ -388,7 +388,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
-const renderDeleteIngredientPage = (req, res, ingredientId) => {
+//const renderDeleteIngredientPage = (req, res, ingredientId) => {
     const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
 
     db.query(sql, [ingredientId], (err, results) => {
