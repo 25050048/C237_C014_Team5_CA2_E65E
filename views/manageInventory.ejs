@@ -80,6 +80,76 @@
       </script>
     <% } %>
 
+    <div id="ingredientEditPanel" class="card mb-4 d-none">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <h5 id="ingredientFormTitle" class="mb-0">Edit Ingredient</h5>
+          <small id="ingredientFormSubtitle" class="text-muted">Update the ingredient details and save your changes.</small>
+        </div>
+        <button type="button" class="btn btn-secondary" id="closeIngredientFormBtn">Close</button>
+      </div>
+      <div class="card-body">
+        <form id="ingredientForm" action="" method="POST" enctype="multipart/form-data">
+          <input type="hidden" name="oldImage" id="oldImageInput" value="">
+          <div class="row gy-3">
+            <div class="col-md-6">
+              <label for="ingredientName" class="form-label">Ingredient Name</label>
+              <input type="text" class="form-control" id="ingredientName" name="name" required>
+            </div>
+            <div class="col-md-6">
+              <label for="category" class="form-label">Category</label>
+              <select class="form-select" id="category" name="category" required>
+                <option value="">Select category</option>
+                <% if (categories && categories.length > 0) { %>
+                  <% categories.forEach(function(cat) { %>
+                    <option value="<%= cat %>"><%= cat %></option>
+                  <% }); %>
+                <% } %>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label for="supplier" class="form-label">Supplier</label>
+              <input type="text" class="form-control" id="supplier" name="supplier">
+            </div>
+            <div class="col-md-3">
+              <label for="quantity" class="form-label">Quantity</label>
+              <input type="number" class="form-control" id="quantity" name="quantity" min="0" step="1" required>
+            </div>
+            <div class="col-md-3">
+              <label for="unit" class="form-label">Unit</label>
+              <input type="text" class="form-control" id="unit" name="unit">
+            </div>
+
+            <div class="col-md-6">
+              <label for="storageLocation" class="form-label">Storage Location</label>
+              <input type="text" class="form-control" id="storageLocation" name="storageLocation" required>
+            </div>
+            <div class="col-md-6">
+              <label for="expiryDate" class="form-label">Expiry Date</label>
+              <input type="date" class="form-control" id="expiryDate" name="expiryDate">
+            </div>
+            <div class="col-md-6">
+              <label for="image" class="form-label">Replace Image</label>
+              <input class="form-control" type="file" id="image" name="image" accept="image/*">
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+              <div class="w-100">
+                <div class="border rounded p-3 text-center">
+                  <p class="mb-2"><strong>Current Image</strong></p>
+                  <img id="currentImagePreview" src="" alt="Ingredient image" class="img-fluid" style="max-height: 120px; object-fit: contain;">
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-outline-secondary" id="cancelIngredientFormBtn2">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="ingredientFormSubmit">Update Ingredient</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div class="row g-3 mb-4">
       <div class="col-md-3">
@@ -167,6 +237,54 @@
       </table>
     <% } %>
   </div>
+  <script>
+    const openIngredientForm = (data = {}) => {
+      const panel = document.getElementById('ingredientEditPanel');
+      const form = document.getElementById('ingredientForm');
+
+      form.action = '/updateIngredient/' + data.id;
+      document.getElementById('ingredientName').value = data.name || '';
+      document.getElementById('category').value = data.category || '';
+      document.getElementById('supplier').value = data.supplier || '';
+      document.getElementById('quantity').value = data.quantity || '';
+      document.getElementById('unit').value = data.unit || '';
+      document.getElementById('storageLocation').value = data.storageLocation || '';
+      document.getElementById('expiryDate').value = data.expiryDate || '';
+      document.getElementById('oldImageInput').value = data.image || '';
+      document.getElementById('currentImagePreview').src = data.image ? '/images/' + data.image : '/images/tomatoes.png';
+      document.getElementById('currentImagePreview').alt = data.name || 'Current image';
+      document.getElementById('ingredientFormSubmit').textContent = 'Update Ingredient';
+
+      panel.classList.remove('d-none');
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const closeIngredientForm = () => {
+      document.getElementById('ingredientEditPanel').classList.add('d-none');
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('closeIngredientFormBtn').addEventListener('click', closeIngredientForm);
+      document.getElementById('cancelIngredientFormBtn2').addEventListener('click', closeIngredientForm);
+
+      document.querySelectorAll('.edit-ingredient-link').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          openIngredientForm({
+            id: this.dataset.id,
+            name: this.dataset.name,
+            category: this.dataset.category,
+            supplier: this.dataset.supplier,
+            quantity: this.dataset.quantity,
+            unit: this.dataset.unit,
+            storageLocation: this.dataset.storageLocation,
+            expiryDate: this.dataset.expiryDate,
+            image: this.dataset.image
+          });
+        });
+      });
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
