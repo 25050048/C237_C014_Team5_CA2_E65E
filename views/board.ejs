@@ -1,4 +1,3 @@
-// board
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,11 +28,12 @@
 
         <h1>Manager Dashboard</h1>
 
-        <% if (typeof successMessages !== 'undefined' && successMessages.length > 0) { %>
-            <div class="alert alert-success"><%= successMessages[0] %></div>
+        <!-- FIX: Check for flash messages properly -->
+        <% if (messages && messages.length > 0) { %>
+            <div class="alert alert-success"><%= messages[0] %></div>
         <% } %>
-        <% if (typeof errorMessages !== 'undefined' && errorMessages.length > 0) { %>
-            <div class="alert alert-danger"><%= errorMessages[0] %></div>
+        <% if (errors && errors.length > 0) { %>
+            <div class="alert alert-danger"><%= errors[0] %></div>
         <% } %>
 
         <% if (user) { %>
@@ -73,10 +73,11 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Most Used Ingredients</h6>
-                            <% if (mostUsedIngredients.length === 0) { %>
-                                <p class="mb-0">No usage recorded yet.</p>
-                            <% } else { %>
+                            <!-- FIX: Check if variable exists before using it -->
+                            <% if (typeof mostUsedIngredients !== 'undefined' && mostUsedIngredients.length > 0) { %>
                                 <canvas id="mostUsedChart" height="220"></canvas>
+                            <% } else { %>
+                                <p class="mb-0">No usage recorded yet.</p>
                             <% } %>
                         </div>
                     </div>
@@ -85,10 +86,10 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Least Used Ingredients</h6>
-                            <% if (leastUsedIngredients.length === 0) { %>
-                                <p class="mb-0">No usage recorded yet.</p>
-                            <% } else { %>
+                            <% if (typeof leastUsedIngredients !== 'undefined' && leastUsedIngredients.length > 0) { %>
                                 <canvas id="leastUsedChart" height="220"></canvas>
+                            <% } else { %>
+                                <p class="mb-0">No usage recorded yet.</p>
                             <% } %>
                         </div>
                     </div>
@@ -100,25 +101,24 @@
                     <div class="card shadow-sm h-100 border-danger">
                         <div class="card-body">
                             <h6 class="text-muted">Food Waste (Expired Ingredients)</h6>
-                            <% if (foodWasteItems.length === 0) { %>
-                                <p class="mb-0">No food waste right now — nothing has expired.</p>
-                            <% } else { %>
+                            <% if (typeof foodWasteItems !== 'undefined' && foodWasteItems.length > 0) { %>
                                 <canvas id="foodWasteChart" height="220"></canvas>
+                            <% } else { %>
+                                <p class="mb-0">No food waste right now — nothing has expired.</p>
                             <% } %>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Pending expiry requests: manager can approve or decline directly here (rizq) -->
+            <!-- Pending expiry requests: manager can approve or decline directly here -->
             <div class="row g-3 mb-4">
                 <div class="col-12">
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Pending Expiry Requests</h6>
-                            <% if (pendingExpiryRequests.length === 0) { %>
-                                <p class="mb-0">No pending requests.</p>
-                            <% } else { %>
+                            <!-- FIX: Check if variable exists -->
+                            <% if (typeof pendingExpiryRequests !== 'undefined' && pendingExpiryRequests.length > 0) { %>
                                 <table class="table table-striped">
                                     <thead>
                                         <tr>
@@ -152,12 +152,9 @@
                                         <% }); %>
                                     </tbody>
                                 </table>
+                            <% } else { %>
+                                <p class="mb-0">No pending requests.</p>
                             <% } %>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <% } %>
                         </div>
                     </div>
                 </div>
@@ -168,63 +165,63 @@
 
     <% if (user) { %>
     <script>
+        // FIX: Only run chart code if data exists and is defined
+        <% if (typeof mostUsedIngredients !== 'undefined' && mostUsedIngredients.length > 0) { %>
         const mostUsedData = <%- JSON.stringify(mostUsedIngredients) %>;
-        const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
-        const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
-
         const pieColors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
 
-        if (mostUsedData.length > 0) {
-            new Chart(document.getElementById('mostUsedChart'), {
-                type: 'pie',
-                data: {
-                    labels: mostUsedData.map(i => i.ingredientName),
-                    datasets: [{
-                        data: mostUsedData.map(i => i.totalUsed),
-                        backgroundColor: pieColors
-                    }]
-                },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-            });
-        }
+        new Chart(document.getElementById('mostUsedChart'), {
+            type: 'pie',
+            data: {
+                labels: mostUsedData.map(i => i.ingredientName),
+                datasets: [{
+                    data: mostUsedData.map(i => i.totalUsed),
+                    backgroundColor: pieColors
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+        <% } %>
 
-        if (leastUsedData.length > 0) {
-            new Chart(document.getElementById('leastUsedChart'), {
-                type: 'pie',
-                data: {
-                    labels: leastUsedData.map(i => i.ingredientName),
-                    datasets: [{
-                        data: leastUsedData.map(i => i.totalUsed),
-                        backgroundColor: pieColors
-                    }]
-                },
-                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-            });
-        }
+        <% if (typeof leastUsedIngredients !== 'undefined' && leastUsedIngredients.length > 0) { %>
+        const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
+        new Chart(document.getElementById('leastUsedChart'), {
+            type: 'pie',
+            data: {
+                labels: leastUsedData.map(i => i.ingredientName),
+                datasets: [{
+                    data: leastUsedData.map(i => i.totalUsed),
+                    backgroundColor: ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+        <% } %>
 
-        if (foodWasteData.length > 0) {
-            new Chart(document.getElementById('foodWasteChart'), {
-                type: 'bar',
-                data: {
-                    labels: foodWasteData.map(i => i.ingredientName),
-                    datasets: [{
-                        label: 'Wasted quantity',
-                        data: foodWasteData.map(i => i.quantity),
-                        backgroundColor: '#e15759'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Quantity (weight/liters)' }
-                        }
+        <% if (typeof foodWasteItems !== 'undefined' && foodWasteItems.length > 0) { %>
+        const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
+        new Chart(document.getElementById('foodWasteChart'), {
+            type: 'bar',
+            data: {
+                labels: foodWasteData.map(i => i.ingredientName),
+                datasets: [{
+                    label: 'Wasted quantity',
+                    data: foodWasteData.map(i => i.quantity),
+                    backgroundColor: '#e15759'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Quantity (weight/liters)' }
                     }
                 }
-            });
-        }
+            }
+        });
+        <% } %>
     </script>
     <% } %>
 
