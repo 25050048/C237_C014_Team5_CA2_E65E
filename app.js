@@ -24,6 +24,23 @@ const profileUpload = multer({
     limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+const ingredientUpload = multer({
+    storage: multer.diskStorage({
+        destination: path.join(__dirname, 'public', 'images'),
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase();
+            cb(null, `ingredient-${Date.now()}${Math.round(Math.random() * 1e9)}${ext}`);
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const isAllowedExt = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const isAllowedMime = allowedTypes.test(file.mimetype);
+        cb(null, isAllowedExt && isAllowedMime);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 // Database connection
 const db = mysql.createConnection({
     host: 'c237-marlina-mysql.mysql.database.azure.com',
@@ -370,6 +387,65 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
         req.flash('error', 'Could not load the inventory manager. Please try again.');
         res.redirect('/admin');
     }
+});
+
+app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) => {
+    try {
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL AND category <> '' ORDER BY category`
+        );
+
+        res.render('addNewIngredient', {
+            user: req.session.user,
+            messages: req.flash('error'),
+            successMessages: req.flash('success'),
+            categories: categoryRows.map(r => r.category),
+            formData: req.flash('formData')[0] || {}
+        });
+    } catch (error) {
+        console.error('Load add ingredient page error:', error);
+        req.flash('error', 'Unable to load the add ingredient page.');
+        res.redirect('/manage-inventory');
+    }
+});
+
+app.post('/addProduct', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+    const name = String(req.body.name || '').trim();
+    const category = String(req.body.category || '').trim();
+    const supplier = String(req.body.supplier || '').trim();
+    const quantity = Number(req.body.quantity);
+    const unit = String(req.body.unit || '').trim();
+    const storageLocation = String(req.body.storageLocation || '').trim();
+    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
+    const image = req.file ? req.file.filename : null;
+
+    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
+        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
+        req.flash('formData', req.body);
+        return res.redirect('/addNewIngredient');
+    }
+
+    const insertSql = `
+        INSERT INTO ingredients
+        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.query(
+        insertSql,
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image],
+        (err) => {
+            if (err) {
+                console.error('Add ingredient error:', err);
+                req.flash('error', 'Unable to add the ingredient. Please try again.');
+                req.flash('formData', req.body);
+                return res.redirect('/addNewIngredient');
+            }
+
+            req.flash('success', 'Ingredient added successfully.');
+            return res.redirect('/manage-inventory');
+        }
+    );
 });
 
 // Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
