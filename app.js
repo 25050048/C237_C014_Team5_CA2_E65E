@@ -28,8 +28,7 @@ const ingredientUpload = multer({
     storage: multer.diskStorage({
         destination: path.join(__dirname, 'public', 'images'),
         filename: (req, file, cb) => {
-            const ext = path.extname(file.originalname).toLowerCase();
-            cb(null, `ingredient-${Date.now()}${Math.round(Math.random() * 1e9)}${ext}`);
+            cb(null, path.basename(file.originalname));
         }
     }),
     fileFilter: (req, file, cb) => {
