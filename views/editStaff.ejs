@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Staff Account</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/style.css" rel="stylesheet">
+</head>
+<body>
+    <%- include('partials/navbar') %>
+
+    <div class="pf-page">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>Edit staff account</h1>
+                <p class="pf-subtitle">View this account's details and reset their password.</p>
+            </div>
+            <a href="/user-management" class="pf-btn-outline text-nowrap">Back</a>
+        </div>
+
+        <% if (messages && messages.length > 0) { %>
+            <div class="pf-alert alert-danger">
+                <% messages.forEach(function(message) { %>
+                    <p class="mb-0"><%= message %></p>
+                <% }); %>
+            </div>
+        <% } %>
+        <% if (successMessages && successMessages.length > 0) { %>
+            <div class="pf-alert alert-success">
+                <% successMessages.forEach(function(message) { %>
+                    <p class="mb-0"><%= message %></p>
+                <% }); %>
+            </div>
+        <% } %>
+
+        <!-- Account details -->
+        <div class="pf-card">
+            <h2>Account details</h2>
+            <p class="pf-card-subtitle">Name, email, and role are managed elsewhere and can't be changed here.</p>
+
+            <div class="pf-avatar-row">
+                <% if (staff.profilePicture) { %>
+                    <img src="/images/<%= staff.profilePicture %>" alt="Profile picture" class="pf-avatar">
+                <% } else { %>
+                    <div class="pf-avatar-fallback"><%= staff.fullName.charAt(0).toUpperCase() %></div>
+                <% } %>
+            </div>
+
+            <div class="pf-field-label">Full name</div>
+            <div class="pf-field-value"><%= staff.fullName %></div>
+
+            <div class="pf-field-label">Email</div>
+            <div class="pf-field-value"><%= staff.email %></div>
+
+            <div class="pf-field-label">Role</div>
+            <div class="pf-field-value"><%= staff.role %></div>
+
+            <div class="pf-field-label">Phone</div>
+            <div class="pf-field-value"><%= staff.phone || '-' %></div>
+
+            <div class="pf-field-label">Address</div>
+            <div class="pf-field-value"><%= staff.address || '-' %></div>
+
+            <div class="pf-field-label">Status</div>
+            <div class="pf-field-value">
+                <% if (staff.isLocked) { %>
+                    <span class="um-status locked"><span class="dot"></span>Locked (<%= staff.failedAttempts %> failed attempts)</span>
+                <% } else { %>
+                    <span class="um-status active"><span class="dot"></span>Active</span>
+                <% } %>
+            </div>
+
+            <% if (staff.isLocked) { %>
+                <form method="POST" action="/user-management/<%= staff.staffId %>/reactivate" onsubmit="return confirm('Reactivate this account?');" class="mt-3">
+                    <button type="submit" class="um-reactivate">Reactivate account</button>
+                </form>
+            <% } %>
+        </div>
+
+        <!-- Reset password -->
+        <div class="pf-card">
+            <h2>Reset password</h2>
+            <p class="pf-card-subtitle">As a SuperAdmin, you can set a new password for this account without knowing the current one.</p>
+            <form method="POST" action="/user-management/<%= staff.staffId %>/password">
+                <div class="pf-form-group">
+                    <label for="newPassword">New password</label>
+                    <input type="password" id="newPassword" name="newPassword" class="form-control" minlength="6" required>
+                </div>
+                <div class="pf-form-group">
+                    <label for="confirmPassword">Confirm new password</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" minlength="6" required>
+                </div>
+                <button type="submit" class="pf-btn">Reset password</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

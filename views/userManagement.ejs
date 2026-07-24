@@ -9,8 +9,13 @@
     <%- include('partials/navbar') %>
 
     <div class="um-page">
-        <h1>User management</h1>
-        <p class="um-subtitle">Accounts lock automatically after 5 failed login attempts. Reactivate them below.</p>
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1>User management</h1>
+                <p class="um-subtitle">Accounts lock automatically after 5 failed login attempts. Reactivate them below.</p>
+            </div>
+            <a href="/register-manager" class="pf-btn text-nowrap">Register Manager</a>
+        </div>
 
         <% if (messages && messages.length > 0) { %>
             <div class="um-alert alert-danger">
@@ -54,13 +59,14 @@
                                 <% } %>
                             </td>
                             <td style="text-align: right;">
-                                <% if (staff.isLocked) { %>
-                                    <form method="POST" action="/user-management/<%= staff.staffId %>/reactivate" onsubmit="return confirm('Reactivate this account?');">
-                                        <button type="submit" class="um-reactivate">Reactivate</button>
-                                    </form>
-                                <% } else { %>
-                                    <span class="um-dash">&mdash;</span>
-                                <% } %>
+                                <div class="d-flex justify-content-end align-items-center gap-2">
+                                    <a href="/user-management/<%= staff.staffId %>/edit" class="um-edit">Edit</a>
+                                    <% if (staff.isLocked) { %>
+                                        <form method="POST" action="/user-management/<%= staff.staffId %>/reactivate" onsubmit="return confirm('Reactivate this account?');">
+                                            <button type="submit" class="um-reactivate">Reactivate</button>
+                                        </form>
+                                    <% } %>
+                                </div>
                             </td>
                         </tr>
                     <% }); %>

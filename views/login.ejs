@@ -29,6 +29,11 @@
                     <% }); %>
                 </div>
             <% } %>
+            <% if (typeof passwordChanged !== 'undefined' && passwordChanged) { %>
+                <div class="alert alert-success">
+                    <p class="mb-0">Password changed successfully. Please log in with your new password.</p>
+                </div>
+            <% } %>
 
             <form action="/login" method="POST">
                 <div class="form-group">
