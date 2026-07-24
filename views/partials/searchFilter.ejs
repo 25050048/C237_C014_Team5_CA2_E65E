@@ -1,0 +1,132 @@
+<%# Search & Filter widget - embedded directly on the Kitchen Operations dashboard (Tara) %>
+<%# Submits as GET back to /dashboard/overview so results render inline, on this same page %>
+
+<div class="card mb-4">
+    <div class="card-body">
+
+        <form method="GET" action="/dashboard/overview" class="row g-3 align-items-end">
+
+            <div class="col-md-4">
+                <label for="search" class="form-label">Search Ingredient</label>
+                <input
+                    type="text"
+                    id="search"
+                    name="search"
+                    class="form-control"
+                    placeholder="Example: Chicken"
+                    value="<%= typeof searchTerm !== 'undefined' ? searchTerm : '' %>"
+                >
+            </div>
+
+            <div class="col-md-2">
+                <label for="category" class="form-label">Category</label>
+                <select id="category" name="category" class="form-select">
+                    <option value="">All</option>
+                    <% (typeof categories !== 'undefined' ? categories : []).forEach(function(cat) { %>
+                        <option value="<%= cat %>" <%= (typeof selectedCategory !== 'undefined' && selectedCategory === cat) ? 'selected' : '' %>>
+                            <%= cat %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="storage" class="form-label">Storage Location</label>
+                <select id="storage" name="storage" class="form-select">
+                    <option value="">All</option>
+                    <% (typeof storageOptions !== 'undefined' ? storageOptions : []).forEach(function(loc) { %>
+                        <option value="<%= loc %>" <%= (typeof selectedStorage !== 'undefined' && selectedStorage === loc) ? 'selected' : '' %>>
+                            <%= loc %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="expiry" class="form-label">Expiry Within</label>
+                <select id="expiry" name="expiry" class="form-select">
+                    <option value="">All Ingredients</option>
+                    <option value="expired" <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === 'expired') ? 'selected' : '' %>>Already Expired</option>
+                    <option value="3days" <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === '3days') ? 'selected' : '' %>>3 Days</option>
+                    <option value="7days" <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === '7days') ? 'selected' : '' %>>7 Days</option>
+                    <option value="30days" <%= (typeof selectedExpiry !== 'undefined' && selectedExpiry === '30days') ? 'selected' : '' %>>30 Days</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="stock" class="form-label">Stock Status</label>
+                <select id="stock" name="stock" class="form-select">
+                    <option value="">All</option>
+                    <option value="low" <%= (typeof selectedStock !== 'undefined' && selectedStock === 'low') ? 'selected' : '' %>>Low Stock</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <label for="sort" class="form-label">Sort By</label>
+                <select id="sort" name="sort" class="form-select">
+                    <option value="expiry_asc" <%= (typeof selectedSort !== 'undefined' && selectedSort === 'expiry_asc') ? 'selected' : '' %>>Expiry Date (Earliest)</option>
+                    <option value="expiry_desc" <%= (typeof selectedSort !== 'undefined' && selectedSort === 'expiry_desc') ? 'selected' : '' %>>Expiry Date (Latest)</option>
+                    <option value="name_asc" <%= (typeof selectedSort !== 'undefined' && selectedSort === 'name_asc') ? 'selected' : '' %>>Name (A-Z)</option>
+                    <option value="newest" <%= (typeof selectedSort !== 'undefined' && selectedSort === 'newest') ? 'selected' : '' %>>Newest Added</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-dark w-100">Filter</button>
+            </div>
+
+            <div class="col-md-2">
+                <a href="/dashboard/overview" class="btn btn-outline-secondary w-100">Clear</a>
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<%# Results, shown only after the widget above has been used %>
+<% if (typeof searchResults !== 'undefined' && searchResults !== null) { %>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><%= searchResults.length %> result(s) found</h5>
+        </div>
+        <div class="card-body p-0">
+            <% if (searchResults.length === 0) { %>
+                <p class="text-muted p-3 mb-0">No ingredients matched your search/filter.</p>
+            <% } else { %>
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Ingredient</th>
+                            <th>Category</th>
+                            <th>Storage Location</th>
+                            <th>Quantity</th>
+                            <th>Expiry Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% searchResults.forEach(function(item) { %>
+                            <tr>
+                                <td><%= item.ingredientName %></td>
+                                <td><%= item.category %></td>
+                                <td><%= item.storageLocation %></td>
+                                <td><%= item.quantity %> <%= item.unit || '' %></td>
+                                <td><%= item.expiryDate ? new Date(item.expiryDate).toLocaleDateString('en-SG') : 'Not set' %></td>
+                                <td>
+                                    <% if (item.daysUntilExpiry < 0) { %>
+                                        <span class="badge bg-danger">Expired</span>
+                                    <% } else if (item.daysUntilExpiry <= 3) { %>
+                                        <span class="badge bg-warning text-dark">Expiring Soon</span>
+                                    <% } else { %>
+                                        <span class="badge bg-success">Good</span>
+                                    <% } %>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            <% } %>
+        </div>
+    </div>
+<% } %>
