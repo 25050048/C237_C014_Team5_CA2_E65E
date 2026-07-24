@@ -1,3 +1,4 @@
+// rizq
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,62 +29,54 @@
 
         <h1>Manager Dashboard</h1>
 
-        <!-- Flash Messages - using the correct variable names from the route -->
-        <% if (successMessages && successMessages.length > 0) { %>
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <%= successMessages[0] %>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+        <% if (typeof successMessages !== 'undefined' && successMessages.length > 0) { %>
+            <div class="alert alert-success"><%= successMessages[0] %></div>
         <% } %>
-        <% if (errorMessages && errorMessages.length > 0) { %>
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <%= errorMessages[0] %>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
+        <% if (typeof errorMessages !== 'undefined' && errorMessages.length > 0) { %>
+            <div class="alert alert-danger"><%= errorMessages[0] %></div>
         <% } %>
 
         <% if (user) { %>
-            <!-- Stats Cards -->
             <div class="row g-3 mb-4">
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Total Ingredients Available</h6>
-                            <h2><%= totalAvailable || 0 %></h2>
+                            <h2><%= totalAvailable %></h2>
                             <small class="text-muted">Excludes expired stock</small>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card shadow-sm h-100 border-danger">
                         <div class="card-body">
                             <h6 class="text-muted">Expired Ingredients</h6>
-                            <h2><%= expiredCount || 0 %></h2>
+                            <h2><%= expiredCount %></h2>
                             <small class="text-muted">Number of ingredients past expiry date</small>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6 col-lg-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card shadow-sm h-100 border-warning">
                         <div class="card-body">
                             <h6 class="text-muted">Low Stock Ingredients</h6>
-                            <h2><%= lowStockCount || 0 %></h2>
+                            <h2><%= lowStockCount %></h2>
                             <small class="text-muted">Number of ingredients at/below minimum stock</small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Row 1: Most Used & Least Used -->
+            <!-- Charts go under the "how much ingredients there are" section above -->
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Most Used Ingredients</h6>
-                            <% if (mostUsedIngredients && mostUsedIngredients.length > 0) { %>
-                                <canvas id="mostUsedChart" height="220"></canvas>
+                            <% if (mostUsedIngredients.length === 0) { %>
+                                <p class="mb-0">No usage recorded yet.</p>
                             <% } else { %>
-                                <p class="mb-0 text-muted">No usage recorded yet.</p>
+                                <canvas id="mostUsedChart" height="220"></canvas>
                             <% } %>
                         </div>
                     </div>
@@ -92,136 +85,86 @@
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Least Used Ingredients</h6>
-                            <% if (leastUsedIngredients && leastUsedIngredients.length > 0) { %>
-                                <canvas id="leastUsedChart" height="220"></canvas>
+                            <% if (leastUsedIngredients.length === 0) { %>
+                                <p class="mb-0">No usage recorded yet.</p>
                             <% } else { %>
-                                <p class="mb-0 text-muted">No usage recorded yet.</p>
+                                <canvas id="leastUsedChart" height="220"></canvas>
                             <% } %>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Charts Row 2: Food Waste -->
             <div class="row g-3 mb-4">
                 <div class="col-12">
                     <div class="card shadow-sm h-100 border-danger">
                         <div class="card-body">
                             <h6 class="text-muted">Food Waste (Expired Ingredients)</h6>
-                            <% if (foodWasteItems && foodWasteItems.length > 0) { %>
-                                <canvas id="foodWasteChart" height="220"></canvas>
+                            <% if (foodWasteItems.length === 0) { %>
+                                <p class="mb-0">No food waste right now — nothing has expired.</p>
                             <% } else { %>
-                                <p class="mb-0 text-muted">No food waste right now — nothing has expired.</p>
+                                <canvas id="foodWasteChart" height="220"></canvas>
                             <% } %>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Pending Expiry Requests -->
+            <!-- Pending expiry requests: manager can approve or decline directly here (rizq) -->
             <div class="row g-3 mb-4">
                 <div class="col-12">
                     <div class="card shadow-sm h-100">
                         <div class="card-body">
                             <h6 class="text-muted">Pending Expiry Requests</h6>
-                            <% if (pendingExpiryRequests && pendingExpiryRequests.length > 0) { %>
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Request ID</th>
-                                                <th>Ingredient</th>
-                                                <th>Request Type</th>
-                                                <th>Quantity</th>
-                                                <th>Priority</th>
-                                                <th>Status</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <% pendingExpiryRequests.forEach(function(request) { %>
-                                                <tr>
-                                                    <td><%= request.requestId %></td>
-                                                    <td><%= request.ingredientName %></td>
-                                                    <td><%= request.requestType %></td>
-                                                    <td><%= request.requestedQuantity %></td>
-                                                    <td>
-                                                        <% if (request.priority === 'Urgent') { %>
-                                                            <span class="badge bg-danger">Urgent</span>
-                                                        <% } else if (request.priority === 'High') { %>
-                                                            <span class="badge bg-warning text-dark">High</span>
-                                                        <% } else { %>
-                                                            <span class="badge bg-secondary">Normal</span>
-                                                        <% } %>
-                                                    </td>
-                                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                                    <td>
-                                                        <div class="d-flex gap-2">
-                                                            <form action="/expiryrequests/<%= request.requestId %>/approve" method="POST" class="m-0">
-                                                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                                                            </form>
-                                                            <form action="/expiryrequests/<%= request.requestId %>/reject" method="POST" class="m-0">
-                                                                <button type="submit" class="btn btn-sm btn-danger">Decline</button>
-                                                            </form>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <% }); %>
-                                        </tbody>
-                                    </table>
-                                </div>
+                            <% if (pendingExpiryRequests.length === 0) { %>
+                                <p class="mb-0">No pending requests.</p>
                             <% } else { %>
-                                <p class="mb-0 text-muted">No pending expiry requests.</p>
-                            <% } %>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Request ID</th>
+                                            <th>Ingredient</th>
+                                            <th>Request Type</th>
+                                            <th>Quantity</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% pendingExpiryRequests.forEach(function(request) { %>
+                                            <tr>
+                                                <td><%= request.requestId %></td>
+                                                <td><%= request.ingredientName %></td>
+                                                <td><%= request.requestType %></td>
+                                                <td><%= request.requestedQuantity %></td>
+                                                <td><%= request.priority %></td>
+                                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                                <td class="d-flex gap-2">
+                                                    <form
+                                                    action="/expiryrequests/<%= request.requestId %>/approve"
+                                                    method="POST"
+                                                    class="d-inline"
+                                                >
+                                                    <button type="submit" class="btn btn-success btn-sm">
+                                                        Approve
+                                                    </button>
+                                                </form>
 
-            <!-- Pending Restock Requests -->
-            <div class="row g-3 mb-4">
-                <div class="col-12">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-body">
-                            <h6 class="text-muted">Pending Restock Requests</h6>
-                            <% if (pendingRestockRequests && pendingRestockRequests.length > 0) { %>
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Request ID</th>
-                                                <th>Ingredient</th>
-                                                <th>Requested Quantity</th>
-                                                <th>Requested By</th>
-                                                <th>Status</th>
-                                                <th>Actions</th>
+                                                <form
+                                                    action="/expiryrequests/<%= request.requestId %>/reject"
+                                                    method="POST"
+                                                    class="d-inline"
+                                                >
+                                                    <button type="submit" class="btn btn-danger btn-sm">
+                                                        Reject
+                                                    </button>
+                                                </form>
+                                                                                                </td>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            <% pendingRestockRequests.forEach(function(request) { %>
-                                                <tr>
-                                                    <td><%= request.requestId %></td>
-                                                    <td><%= request.ingredientName %></td>
-                                                    <td><%= request.requestedQuantity %></td>
-                                                    <td><%= request.requestedBy %></td>
-                                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
-                                                    <td>
-                                                        <div class="d-flex gap-2">
-                                                            <form action="/restockrequests/<%= request.requestId %>/accept" method="POST" class="m-0">
-                                                                <button type="submit" class="btn btn-sm btn-success">Accept</button>
-                                                            </form>
-                                                            <form action="/restockrequests/<%= request.requestId %>/decline" method="POST" class="m-0">
-                                                                <button type="submit" class="btn btn-sm btn-danger">Decline</button>
-                                                            </form>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <% }); %>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <% } else { %>
-                                <p class="mb-0 text-muted">No pending restock requests.</p>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
                             <% } %>
                         </div>
                     </div>
@@ -231,83 +174,65 @@
 
     </main>
 
-    <!-- Bootstrap JS for dismissible alerts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Chart.js Scripts -->
     <% if (user) { %>
     <script>
-        // Only run chart code if data exists
-        <% if (mostUsedIngredients && mostUsedIngredients.length > 0) { %>
-            const mostUsedData = <%- JSON.stringify(mostUsedIngredients) %>;
-            const pieColors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#af7ac1', '#ff9da7', '#9c755f', '#bab0ac'];
+        const mostUsedData = <%- JSON.stringify(mostUsedIngredients) %>;
+        const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
+        const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
 
+        const pieColors = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f'];
+
+        if (mostUsedData.length > 0) {
             new Chart(document.getElementById('mostUsedChart'), {
                 type: 'pie',
                 data: {
                     labels: mostUsedData.map(i => i.ingredientName),
                     datasets: [{
                         data: mostUsedData.map(i => i.totalUsed),
-                        backgroundColor: pieColors.slice(0, mostUsedData.length)
+                        backgroundColor: pieColors
                     }]
                 },
-                options: { 
-                    responsive: true, 
-                    plugins: { 
-                        legend: { position: 'bottom' } 
-                    }
-                }
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
             });
-        <% } %>
+        }
 
-        <% if (leastUsedIngredients && leastUsedIngredients.length > 0) { %>
-            const leastUsedData = <%- JSON.stringify(leastUsedIngredients) %>;
+        if (leastUsedData.length > 0) {
             new Chart(document.getElementById('leastUsedChart'), {
                 type: 'pie',
                 data: {
                     labels: leastUsedData.map(i => i.ingredientName),
                     datasets: [{
                         data: leastUsedData.map(i => i.totalUsed),
-                        backgroundColor: ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#af7ac1', '#ff9da7']
+                        backgroundColor: pieColors
                     }]
                 },
-                options: { 
-                    responsive: true, 
-                    plugins: { 
-                        legend: { position: 'bottom' } 
-                    }
-                }
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
             });
-        <% } %>
+        }
 
-        <% if (foodWasteItems && foodWasteItems.length > 0) { %>
-            const foodWasteData = <%- JSON.stringify(foodWasteItems) %>;
+        if (foodWasteData.length > 0) {
             new Chart(document.getElementById('foodWasteChart'), {
                 type: 'bar',
                 data: {
                     labels: foodWasteData.map(i => i.ingredientName),
                     datasets: [{
-                        label: 'Wasted Quantity',
+                        label: 'Wasted quantity',
                         data: foodWasteData.map(i => i.quantity),
-                        backgroundColor: '#e15759',
-                        borderColor: '#c0392b',
-                        borderWidth: 1
+                        backgroundColor: '#e15759'
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { 
-                        legend: { display: false } 
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            title: { display: true, text: 'Quantity' }
+                            title: { display: true, text: 'Quantity (weight/liters)' }
                         }
                     }
                 }
             });
-        <% } %>
+        }
     </script>
     <% } %>
 
