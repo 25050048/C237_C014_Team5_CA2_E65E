@@ -388,6 +388,37 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
+const renderDeleteIngredientPage = (req, res, ingredientId) => {
+    const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
+
+    db.query(sql, [ingredientId], (err, results) => {
+        if (err) {
+            console.error('Load delete ingredient error:', err);
+            req.flash('error', 'Unable to load delete confirmation.');
+            return res.redirect('/manage-inventory');
+        }
+
+        if (results.length === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/manage-inventory');
+        }
+
+        res.render('deleteOldIngredient', {
+            user: req.session.user,
+            ingredient: results[0],
+            messages: req.flash('error')
+        });
+    });
+};
+
+app.get('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    renderDeleteIngredientPage(req, res, req.params.id);
+});
+
+app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    renderDeleteIngredientPage(req, res, req.params.id);
+});
+
 // Delete ingredient route (Tong Sun)
 app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
     const ingredientId = req.params.id;
