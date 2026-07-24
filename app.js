@@ -409,8 +409,8 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             messages: req.flash('error')
         });
     });
-};
 
+    
 app.get('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
     renderDeleteIngredientPage(req, res, req.params.id);
 });
