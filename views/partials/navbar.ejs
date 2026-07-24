@@ -17,10 +17,6 @@
             <!-- ========================= -->
             <% if (user.role === 'Chef') { %>
 
-                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
-                    Kitchen Dashboard
-                </a>
-
                 <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">
                     Expiry Monitoring
                 </a>
@@ -38,16 +34,8 @@
             <!-- ========================= -->
             <% } else if (user.role === 'Manager') { %>
 
-                <a class="nav-tab" data-path="/board" href="/board">
-                    Manager Dashboard
-                </a>
-
                 <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">
                     Manage Inventory
-                </a>
-
-                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
-                    Kitchen Dashboard
                 </a>
 
                 <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">
@@ -67,10 +55,6 @@
             <!-- ========================= -->
             <% } else if (user.role === 'SuperAdmin') { %>
 
-                <a class="nav-tab" data-path="/board" href="/board">
-                    Admin Dashboard
-                </a>
-
                 <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">
                     Manage Inventory
                 </a>
@@ -81,10 +65,6 @@
 
                 <a class="nav-tab" data-path="/register-manager" href="/register-manager">
                     Register Manager
-                </a>
-
-                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
-                    Kitchen Dashboard
                 </a>
 
                 <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">

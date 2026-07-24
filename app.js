@@ -255,7 +255,7 @@ req.session.user = staffMember;
 
 // Route to the page that matches the account's role (Jun Yuan)
 if (staffMember.role === 'SuperAdmin') {
-res.redirect('/');
+res.redirect('/admin');
 } else if (staffMember.role === 'Manager') {
 res.redirect('/admin');
 } else {
