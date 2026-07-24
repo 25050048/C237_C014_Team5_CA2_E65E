@@ -388,25 +388,26 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
-app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
-    const ingredientId = req.params.id;
-    const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
+//app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    //const ingredientId = req.params.id;
+    //const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
 
-    db.query(sql, [ingredientId], (err, results) => {
-        if (err) {
-            console.error('Load delete ingredient error:', err);
-            req.flash('error', 'Unable to load delete confirmation.');
-            return res.redirect('/manage-inventory');
-        }
+    //db.query(sql, [ingredientId], (err, results) => {
+        //if (err) {
+            //console.error('Load delete ingredient error:', err);
+            //req.flash('error', 'Unable to load delete confirmation.');
+            //return res.redirect('/manage-inventory');
+        //}
 
-        res.render('deleteOldIngredient', {
-            user: req.session.user,
-            ingredient: results.length > 0 ? results[0] : null,
-            messages: req.flash('error')
-        });
-    });
-});
+        //res.render('deleteOldIngredient', {
+            //user: req.session.user,
+            //ingredient: results.length > 0 ? results[0] : null,
+            //messages: req.flash('error')
+        //});
+    //});
+//});
 
+// Delete ingredient route (Tong Sun)
 app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
     const ingredientId = req.params.id;
     const sql = 'DELETE FROM ingredients WHERE ingredientId = ?';
@@ -428,6 +429,7 @@ app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res
     });
 });
 
+// Add new ingredient route (Tong Sun)
 app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) => {
     try {
         const [categoryRows] = await db.promise().query(
@@ -446,47 +448,6 @@ app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) 
         req.flash('error', 'Unable to load the add ingredient page.');
         res.redirect('/manage-inventory');
     }
-});
-
-app.post('/addProduct', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
-    const name = String(req.body.name || '').trim();
-    const category = String(req.body.category || '').trim();
-    const supplier = String(req.body.supplier || '').trim();
-    const quantity = Number(req.body.quantity);
-    const unit = String(req.body.unit || '').trim();
-    const storageLocation = String(req.body.storageLocation || '').trim();
-    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
-    const image = req.file ? req.file.filename : null;
-
-    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
-        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
-        req.flash('formData', req.body);
-        return res.redirect('/addNewIngredient');
-    }
-
-    const createdBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
-
-    const insertSql = `
-        INSERT INTO ingredients
-        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
-    db.query(
-        insertSql,
-        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy],
-        (err) => {
-            if (err) {
-                console.error('Add ingredient error:', err);
-                req.flash('error', 'Unable to add the ingredient. Please try again.');
-                req.flash('formData', req.body);
-                return res.redirect('/addNewIngredient');
-            }
-
-            req.flash('success', 'Ingredient added successfully.');
-            return res.redirect('/manage-inventory');
-        }
-    );
 });
 
 app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
