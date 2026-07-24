@@ -587,9 +587,8 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     });
 });
 
-// ============================================
-// LOGOUT ROUTE (Jun Yuan)
-// ============================================
+
+// Logout route (Jun Yuan)
 app.get('/logout', (req, res) => {
     req.session.destroy();
     res.redirect('/');
