@@ -412,6 +412,7 @@ const renderDeleteIngredientPage = (req, res, ingredientId) => {
     });
 };
 
+// Delete ingredient confirmation page (Tong Sun)
 app.get('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, (req, res) => {
     renderDeleteIngredientPage(req, res, req.params.id);
 });
