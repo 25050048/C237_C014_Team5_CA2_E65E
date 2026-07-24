@@ -45,14 +45,16 @@
             <% } %>
 
             <% if (ingredient) { %>
-              <p>Are you sure you want to delete the ingredient <strong><%= ingredient.ingredientName %></strong>?</p>
-              <ul class="list-group mb-4">
-                <li class="list-group-item">Category: <%= ingredient.category || 'N/A' %></li>
-                <li class="list-group-item">Quantity: <%= ingredient.quantity %> <%= ingredient.unit || '' %></li>
-                <li class="list-group-item">Storage: <%= ingredient.storageLocation || 'N/A' %></li>
-                <li class="list-group-item">Supplier: <%= ingredient.supplier || 'N/A' %></li>
-                <li class="list-group-item">Expiry Date: <%= ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'Not set' %></li>
-              </ul>
+              <p class="lead">Are you sure you want to delete the ingredient <strong><%= ingredient.ingredientName %></strong>?</p>
+              <div class="text-center mb-4">
+                <img src="/images/<%= ingredient.image || 'tomatoes.png' %>" alt="<%= ingredient.ingredientName %>" class="img-fluid rounded" style="max-height: 220px; object-fit: contain;">
+              </div>
+              <div class="text-center mb-4">
+                <p class="mb-1"><strong>Category:</strong> <%= ingredient.category || 'N/A' %></p>
+                <p class="mb-1"><strong>Quantity:</strong> <%= ingredient.quantity %> <%= ingredient.unit || '' %></p>
+                <p class="mb-1"><strong>Storage:</strong> <%= ingredient.storageLocation || 'N/A' %></p>
+                <p class="mb-1"><strong>Expiry Date:</strong> <%= ingredient.expiryDate ? new Date(ingredient.expiryDate).toLocaleDateString() : 'Not set' %></p>
+              </div>
 
               <form action="/deleteOldIngredient/<%= ingredient.ingredientId %>" method="POST">
                 <div class="d-flex justify-content-between">
