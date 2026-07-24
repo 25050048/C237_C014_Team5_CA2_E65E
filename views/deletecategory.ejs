@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Category</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body class="bg-light">
+
+    <%- include('partials/navbar') %>
+
+    <main class="container py-4" style="max-width: 500px;">
+
+        <h1 class="mb-4">Delete Category</h1>
+
+        <% if (typeof messages !== 'undefined' && messages && messages.length) { %>
+            <% messages.forEach(message => { %>
+                <div class="alert alert-danger"><%= message %></div>
+            <% }) %>
+        <% } %>
+
+        <% if (category) { %>
+            <div class="card border-danger">
+                <div class="card-body">
+                    <p>Are you sure you want to delete the category:</p>
+                    <h4 class="mb-3"><%= category.categoryName %></h4>
+                    <p class="text-muted small">
+                        This only removes the category from the list used by the
+                        filter dropdown. Existing ingredients keep their current
+                        category text and are not affected.
+                    </p>
+                    <form method="POST" action="/categories/<%= category.categoryId %>/delete">
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="/categories" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-danger">Delete Category</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        <% } else { %>
+            <p class="text-muted">Category not found.</p>
+            <a href="/categories" class="btn btn-outline-secondary">Back to Categories</a>
+        <% } %>
+
+    </main>
+
+</body>
+</html>
