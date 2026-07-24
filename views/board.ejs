@@ -29,6 +29,13 @@
 
         <h1>Manager Dashboard</h1>
 
+        <% if (typeof successMessages !== 'undefined' && successMessages.length > 0) { %>
+            <div class="alert alert-success"><%= successMessages[0] %></div>
+        <% } %>
+        <% if (typeof errorMessages !== 'undefined' && errorMessages.length > 0) { %>
+            <div class="alert alert-danger"><%= errorMessages[0] %></div>
+        <% } %>
+
         <% if (user) { %>
             <div class="row g-3 mb-4">
                 <div class="col-md-6 col-lg-3">
@@ -97,6 +104,54 @@
                                 <p class="mb-0">No food waste right now — nothing has expired.</p>
                             <% } else { %>
                                 <canvas id="foodWasteChart" height="220"></canvas>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending expiry requests: manager can approve or decline directly here (rizq) -->
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="text-muted">Pending Expiry Requests</h6>
+                            <% if (pendingExpiryRequests.length === 0) { %>
+                                <p class="mb-0">No pending requests.</p>
+                            <% } else { %>
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Request ID</th>
+                                            <th>Ingredient</th>
+                                            <th>Request Type</th>
+                                            <th>Quantity</th>
+                                            <th>Priority</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% pendingExpiryRequests.forEach(function(request) { %>
+                                            <tr>
+                                                <td><%= request.requestId %></td>
+                                                <td><%= request.ingredientName %></td>
+                                                <td><%= request.requestType %></td>
+                                                <td><%= request.requestedQuantity %></td>
+                                                <td><%= request.priority %></td>
+                                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                                <td class="d-flex gap-2">
+                                                    <form action="/expiryrequests/<%= request.requestId %>/approve" method="POST" class="m-0">
+                                                        <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                                    </form>
+                                                    <form action="/expiryrequests/<%= request.requestId %>/decline" method="POST" class="m-0">
+                                                        <button type="submit" class="btn btn-sm btn-danger">Decline</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
                             <% } %>
                         </div>
                     </div>
