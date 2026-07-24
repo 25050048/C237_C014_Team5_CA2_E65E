@@ -24,6 +24,22 @@ const profileUpload = multer({
     limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+const ingredientUpload = multer({
+    storage: multer.diskStorage({
+        destination: path.join(__dirname, 'public', 'images'),
+        filename: (req, file, cb) => {
+            cb(null, path.basename(file.originalname));
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const isAllowedExt = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const isAllowedMime = allowedTypes.test(file.mimetype);
+        cb(null, isAllowedExt && isAllowedMime);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 // Database connection
 const db = mysql.createConnection({
     host: 'c237-marlina-mysql.mysql.database.azure.com',
@@ -372,6 +388,147 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
+app.get('/deleteIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
+
+    db.query(sql, [ingredientId], (err, results) => {
+        if (err) {
+            console.error('Load delete ingredient error:', err);
+            req.flash('error', 'Unable to load delete confirmation.');
+            return res.redirect('/manage-inventory');
+        }
+
+        res.render('deleteOldIngredient', {
+            user: req.session.user,
+            ingredient: results.length > 0 ? results[0] : null,
+            messages: req.flash('error')
+        });
+    });
+});
+
+app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+    const ingredientId = req.params.id;
+    const sql = 'DELETE FROM ingredients WHERE ingredientId = ?';
+
+    db.query(sql, [ingredientId], (err, result) => {
+        if (err) {
+            console.error('Delete ingredient error:', err);
+            req.flash('error', 'Unable to delete the ingredient.');
+            return res.redirect(`/deleteIngredient/${ingredientId}`);
+        }
+
+        if (result.affectedRows === 0) {
+            req.flash('error', 'Ingredient not found.');
+            return res.redirect('/manage-inventory');
+        }
+
+        req.flash('success', 'Ingredient deleted successfully.');
+        res.redirect('/manage-inventory');
+    });
+});
+
+app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) => {
+    try {
+        const [categoryRows] = await db.promise().query(
+            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL AND category <> '' ORDER BY category`
+        );
+
+        res.render('addNewIngredient', {
+            user: req.session.user,
+            messages: req.flash('error'),
+            successMessages: req.flash('success'),
+            categories: categoryRows.map(r => r.category),
+            formData: req.flash('formData')[0] || {}
+        });
+    } catch (error) {
+        console.error('Load add ingredient page error:', error);
+        req.flash('error', 'Unable to load the add ingredient page.');
+        res.redirect('/manage-inventory');
+    }
+});
+
+app.post('/addProduct', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+    const name = String(req.body.name || '').trim();
+    const category = String(req.body.category || '').trim();
+    const supplier = String(req.body.supplier || '').trim();
+    const quantity = Number(req.body.quantity);
+    const unit = String(req.body.unit || '').trim();
+    const storageLocation = String(req.body.storageLocation || '').trim();
+    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
+    const image = req.file ? req.file.filename : null;
+
+    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
+        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
+        req.flash('formData', req.body);
+        return res.redirect('/addNewIngredient');
+    }
+
+    const createdBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
+
+    const insertSql = `
+        INSERT INTO ingredients
+        (ingredientName, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.query(
+        insertSql,
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, createdBy],
+        (err) => {
+            if (err) {
+                console.error('Add ingredient error:', err);
+                req.flash('error', 'Unable to add the ingredient. Please try again.');
+                req.flash('formData', req.body);
+                return res.redirect('/addNewIngredient');
+            }
+
+            req.flash('success', 'Ingredient added successfully.');
+            return res.redirect('/manage-inventory');
+        }
+    );
+});
+
+app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+    const ingredientId = req.params.id;
+    const name = String(req.body.name || '').trim();
+    const category = String(req.body.category || '').trim();
+    const supplier = String(req.body.supplier || '').trim();
+    const quantity = Number(req.body.quantity);
+    const unit = String(req.body.unit || '').trim();
+    const storageLocation = String(req.body.storageLocation || '').trim();
+    const expiryDate = req.body.expiryDate ? String(req.body.expiryDate).trim() : null;
+    const oldImage = String(req.body.oldImage || '').trim();
+    const image = req.file ? req.file.filename : oldImage || null;
+    const updatedBy = req.session.user && req.session.user.staffId ? req.session.user.staffId : null;
+
+    if (!name || !category || !storageLocation || Number.isNaN(quantity) || quantity < 0) {
+        req.flash('error', 'Please provide a valid name, category, storage location, and quantity.');
+        return res.redirect('/manage-inventory');
+    }
+
+    const updateSql = `
+        UPDATE ingredients
+        SET ingredientName = ?, category = ?, supplier = ?, quantity = ?, unit = ?, storageLocation = ?, expiryDate = ?, image = ?, updatedBy = ?
+        WHERE ingredientId = ?
+    `;
+
+    db.query(
+        updateSql,
+        [name, category, supplier, quantity, unit, storageLocation, expiryDate, image, updatedBy, ingredientId],
+        (err) => {
+            if (err) {
+                console.error('Update ingredient error:', err);
+                req.flash('error', 'Unable to update the ingredient. Please try again.');
+                return res.redirect('/manage-inventory');
+            }
+
+            req.flash('success', 'Ingredient updated successfully.');
+            return res.redirect('/manage-inventory');
+        }
+    );
+});
+
 // Inventory board / Manager Dashboard: Total Ingredients Available - admin/superadmin only (rizq)
 app.get('/board', checkAuthenticated, checkManager, (req, res) => {
     req.db.query('SELECT * FROM ingredients', (err, results) => {
@@ -435,14 +592,32 @@ app.get('/board', checkAuthenticated, checkManager, (req, res) => {
             const mostUsedIngredients = usedRows.slice(0, 5);
             const leastUsedIngredients = [...usedRows].reverse().slice(0, 5);
 
-            res.render('board', {
-                user: req.session.user,
-                totalAvailable,
-                expiredCount,
-                lowStockCount,
-                foodWasteItems,
-                mostUsedIngredients,
-                leastUsedIngredients
+            // Pending expiry requests, so managers can approve/decline right from the board. (rizq)
+            req.db.query(`
+                SELECT er.*, i.ingredientName
+                FROM expiry_requests er
+                LEFT JOIN ingredients i ON i.ingredientId = er.ingredientId
+                WHERE er.status = 'Pending'
+                ORDER BY er.createdAt DESC
+            `, (pendingErr, pendingRows) => {
+                if (pendingErr) {
+                    console.error('Board pending requests error:', pendingErr);
+                    req.flash('error', 'Could not load pending expiry requests. Please try again.');
+                    return res.redirect('/dashboard');
+                }
+
+                res.render('board', {
+                    user: req.session.user,
+                    totalAvailable,
+                    expiredCount,
+                    lowStockCount,
+                    foodWasteItems,
+                    mostUsedIngredients,
+                    leastUsedIngredients,
+                    pendingExpiryRequests: pendingRows,
+                    successMessages: req.flash('success'),
+                    errorMessages: req.flash('error')
+                });
             });
         });
     });
@@ -899,6 +1074,80 @@ app.get(
             const ingredients = await loadIngredients();
             const expiryRequests = await loadExpiryRequests();
 
+            // ==================[ TARA ]==================
+            // Search & Filter widget
+            // Runs only when the widget's form has actually been submitted,
+            // so the dashboard looks the same as before until a search/filter
+            // is applied.
+            const search = req.query.search || '';
+            const filterCategory = req.query.category || '';
+            const filterStorage = req.query.storage || '';
+            const filterExpiry = req.query.expiry || '';
+            const filterStock = req.query.stock || '';
+            const sort = req.query.sort || '';
+
+            const hasSearchOrFilter = !!(
+                search || filterCategory || filterStorage ||
+                filterExpiry || filterStock || sort
+            );
+
+            let searchResults = null;
+
+            if (hasSearchOrFilter) {
+                let sql = `
+                    SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
+                    FROM ingredients
+                    WHERE 1=1
+                `;
+                const params = [];
+
+                if (search) {
+                    sql += ` AND ingredientName LIKE ?`;
+                    params.push(`%${search}%`);
+                }
+                if (filterCategory) {
+                    sql += ` AND category = ?`;
+                    params.push(filterCategory);
+                }
+                if (filterStorage) {
+                    sql += ` AND storageLocation = ?`;
+                    params.push(filterStorage);
+                }
+                if (filterExpiry === 'expired') {
+                    sql += ` AND expiryDate < CURDATE()`;
+                } else if (filterExpiry === '3days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
+                } else if (filterExpiry === '7days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
+                } else if (filterExpiry === '30days') {
+                    sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`;
+                }
+                if (filterStock === 'low') {
+                    sql += ` AND quantity <= minimumStock`;
+                }
+
+                if (sort === 'expiry_desc') {
+                    sql += ` ORDER BY expiryDate DESC`;
+                } else if (sort === 'name_asc') {
+                    sql += ` ORDER BY ingredientName ASC`;
+                } else if (sort === 'newest') {
+                    sql += ` ORDER BY createdAt DESC`;
+                } else {
+                    sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
+                }
+
+                const [rows] = await db.promise().query(sql, params);
+                searchResults = rows;
+            }
+            // ================[ END TARA ]================
+
+            const [categoryRows] = await db.promise().query(
+                `SELECT categoryId, categoryName FROM categories ORDER BY categoryName ASC`
+            );
+            const [storageRows] = await db.promise().query(
+                `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
+            );
+
             // Load kitchen tasks from MySQL
            const kitchenTasks = await runQuery(`
             SELECT
@@ -1020,6 +1269,20 @@ console.log('TASKS SENT TO DASHBOARD:', kitchenTasks);
 
                 recentRequests:
                     expiryRequests.slice(0, 5),
+
+                // ==================[ TARA ]==================
+                // Search & Filter widget data
+                searchResults,
+                categories: categoryRows.map(r => r.categoryName),
+                categoryList: categoryRows,
+                storageOptions: storageRows.map(r => r.storageLocation),
+                searchTerm: search,
+                selectedCategory: filterCategory,
+                selectedStorage: filterStorage,
+                selectedExpiry: filterExpiry,
+                selectedStock: filterStock,
+                selectedSort: sort,
+                // ================[ END TARA ]================
 
                 successMessages:
                     req.flash('success'),
@@ -1614,94 +1877,158 @@ app.post(
 );
 
 
-// Search & Filter routes (Tara)
-app.get('/search', requireLogin, async (req, res) => {
+// =====================================================
+// ==================[ TARA ]====================
+// CATEGORY MANAGEMENT
+// The search/filter widget on the Kitchen Operations dashboard also reads
+// from this table to populate its Category dropdown.
+// =====================================================
+
+// [GET] List all categories
+app.get('/categories', checkAuthenticated, async (req, res) => {
     try {
-        const search = req.query.search || '';
-        const category = req.query.category || '';
-        const storage = req.query.storage || '';
-        const expiry = req.query.expiry || '';
-        const sort = req.query.sort || '';
-
-        let sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE 1=1
-        `;
-        const params = [];
-
-        if (search) {
-            sql += ` AND ingredientName LIKE ?`;
-            params.push(`%${search}%`);
-        }
-        if (category) {
-            sql += ` AND category = ?`;
-            params.push(category);
-        }
-        if (storage) {
-            sql += ` AND storageLocation = ?`;
-            params.push(storage);
-        }
-        if (expiry === 'expired') {
-            sql += ` AND expiryDate < CURDATE()`;
-        } else if (expiry === '3days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)`;
-        } else if (expiry === '7days') {
-            sql += ` AND expiryDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`;
-        }
-
-        if (sort === 'expiry_desc') {
-            sql += ` ORDER BY expiryDate DESC`;
-        } else if (sort === 'name_asc') {
-            sql += ` ORDER BY ingredientName ASC`;
-        } else if (sort === 'newest') {
-            sql += ` ORDER BY createdAt DESC`;
-        } else {
-            sql += ` ORDER BY expiryDate ASC`; // default: expiry_asc
-        }
-
-        const [items] = await db.promise().query(sql, params);
-        const [categoryRows] = await db.promise().query(
-            `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL ORDER BY category`
+        const [categories] = await db.promise().query(
+            `SELECT * FROM categories ORDER BY categoryName ASC`
         );
-        const [storageRows] = await db.promise().query(
-            `SELECT DISTINCT storageLocation FROM ingredients WHERE storageLocation IS NOT NULL ORDER BY storageLocation`
-        );
-
-        res.render('search', {
+        res.render('category', {
             user: req.session.user,
-            items,
-            categories: categoryRows.map(r => r.category),
-            storageOptions: storageRows.map(r => r.storageLocation),
-            search,
-            selectedCategory: category,
-            selectedStorage: storage,
-            selectedExpiry: expiry,
-            selectedSort: sort
+            categories,
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
         });
     } catch (error) {
-        console.error('Search error:', error);
-        req.flash('error', 'Something went wrong while searching. Please try again.');
-        res.redirect('/dashboard');
+        console.error('List categories error:', error);
+        req.flash('error', 'Unable to load categories.');
+        res.redirect('/dashboard/overview');
     }
 });
 
-app.get('/expiring', requireLogin, async (req, res) => {
+// [GET] Show the add-category form
+app.get('/categories/new', checkAuthenticated, (req, res) => {
+    res.render('newcategory', {
+        user: req.session.user,
+        messages: req.flash('error'),
+        formData: req.flash('formData')[0] || {}
+    });
+});
+
+// [POST] Create a new category
+app.post('/categories/new', checkAuthenticated, async (req, res) => {
+    const categoryName = String(req.body.categoryName || '').trim();
+
+    if (!categoryName) {
+        req.flash('error', 'Category name is required.');
+        req.flash('formData', req.body);
+        return res.redirect('/categories/new');
+    }
+
     try {
-        const sql = `
-            SELECT *, DATEDIFF(expiryDate, CURDATE()) AS daysUntilExpiry
-            FROM ingredients
-            WHERE expiryDate <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-            ORDER BY expiryDate ASC
-        `;
-        const [items] = await db.promise().query(sql);
-        res.render('expiring', { user: req.session.user, items });
+        await db.promise().query(
+            `INSERT INTO categories (categoryName) VALUES (?)`,
+            [categoryName]
+        );
+        req.flash('success', 'Category added successfully.');
+        res.redirect('/categories');
     } catch (error) {
-        console.error('Expiring error:', error);
-        req.flash('error', 'Something went wrong loading expiring items. Please try again.');
-        res.redirect('/dashboard');
+        console.error('Add category error:', error);
+        const message = error.code === 'ER_DUP_ENTRY'
+            ? 'That category already exists.'
+            : 'Unable to add the category. Please try again.';
+        req.flash('error', message);
+        req.flash('formData', req.body);
+        res.redirect('/categories/new');
     }
 });
+
+// [GET] Show the edit-category form
+app.get('/categories/:id/edit', checkAuthenticated, async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT * FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        if (rows.length === 0) {
+            req.flash('error', 'Category not found.');
+            return res.redirect('/categories');
+        }
+        res.render('updatecategory', {
+            user: req.session.user,
+            category: rows[0],
+            messages: req.flash('error')
+        });
+    } catch (error) {
+        console.error('Load edit category error:', error);
+        req.flash('error', 'Unable to load the category.');
+        res.redirect('/categories');
+    }
+});
+
+// [POST] Save changes to a category
+app.post('/categories/:id/edit', checkAuthenticated, async (req, res) => {
+    const categoryName = String(req.body.categoryName || '').trim();
+    const categoryId = req.params.id;
+
+    if (!categoryName) {
+        req.flash('error', 'Category name is required.');
+        return res.redirect(`/categories/${categoryId}/edit`);
+    }
+
+    try {
+        await db.promise().query(
+            `UPDATE categories SET categoryName = ? WHERE categoryId = ?`,
+            [categoryName, categoryId]
+        );
+        req.flash('success', 'Category updated successfully.');
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Update category error:', error);
+        const message = error.code === 'ER_DUP_ENTRY'
+            ? 'That category already exists.'
+            : 'Unable to update the category. Please try again.';
+        req.flash('error', message);
+        res.redirect(`/categories/${categoryId}/edit`);
+    }
+});
+
+// [GET] Show the delete-category confirmation page
+app.get('/categories/:id/delete', checkAuthenticated, async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT * FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        res.render('deletecategory', {
+            user: req.session.user,
+            category: rows.length > 0 ? rows[0] : null,
+            messages: req.flash('error')
+        });
+    } catch (error) {
+        console.error('Load delete category error:', error);
+        req.flash('error', 'Unable to load delete confirmation.');
+        res.redirect('/categories');
+    }
+});
+
+// [POST] Delete a category
+app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
+    try {
+        const [result] = await db.promise().query(
+            `DELETE FROM categories WHERE categoryId = ?`,
+            [req.params.id]
+        );
+        if (result.affectedRows === 0) {
+            req.flash('error', 'Category not found.');
+        } else {
+            req.flash('success', 'Category deleted successfully.');
+        }
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Delete category error:', error);
+        req.flash('error', 'Unable to delete the category.');
+        res.redirect('/categories');
+    }
+});
+// ================[ END TARA ]================
 
 // [GET] Display Ingredient Usage Form (Sean)
 app.get('/ingredient-usage', checkAuthenticated, (req, res) => {

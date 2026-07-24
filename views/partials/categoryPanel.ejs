@@ -1,0 +1,59 @@
+<%# Category Management widget - embedded on the Kitchen Operations dashboard (Tara) %>
+<%# Uses categoryList (array of {categoryId, categoryName}) - keep separate from
+    the `categories` string array used by the search filter dropdown %>
+
+<div class="card h-100">
+
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Category Management</h5>
+
+        <a href="/categories/new" class="btn btn-success btn-sm">
+            + Add Category
+        </a>
+    </div>
+
+    <div class="card-body p-0">
+
+        <% if (typeof categoryList !== 'undefined' && categoryList && categoryList.length > 0) { %>
+
+            <ul class="list-group list-group-flush">
+
+                <% categoryList.forEach(function(cat) { %>
+
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+
+                        <span><%= cat.categoryName %></span>
+
+                        <div class="d-flex gap-1">
+                            <a
+                                href="/categories/<%= cat.categoryId %>/edit"
+                                class="btn btn-sm btn-outline-primary"
+                            >
+                                Edit
+                            </a>
+
+                            <a
+                                href="/categories/<%= cat.categoryId %>/delete"
+                                class="btn btn-sm btn-outline-danger"
+                            >
+                                Delete
+                            </a>
+                        </div>
+
+                    </li>
+
+                <% }); %>
+
+            </ul>
+
+        <% } else { %>
+
+            <p class="text-muted p-3 mb-0">
+                No categories yet. Add one to get started.
+            </p>
+
+        <% } %>
+
+    </div>
+
+</div>
