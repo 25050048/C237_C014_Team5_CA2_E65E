@@ -26,11 +26,21 @@
         </section>
 
         <section class="feature-row">
-            <a href="/manage-inventory" class="feature-card" style="text-decoration: none; color: inherit; display: block;">
+            <div class="feature-card">
+                <i class="bi bi-alarm"></i>
+                <h3>Expiry alerts</h3>
+                <p>Get notified before your food expires.</p>
+            </div>
+            <div class="feature-card">
+                <i class="bi bi-search"></i>
+                <h3>Quick search</h3>
+                <p>Find any ingredient instantly.</p>
+            </div>
+            <div class="feature-card">
                 <i class="bi bi-clipboard-check"></i>
                 <h3>Inventory Board</h3>
                 <p>Search, filter, and manage every ingredient in stock.</p>
-            </a>
+            </div>
             <% if (user.role === 'SuperAdmin') { %>
                 <a href="/register-manager" class="feature-card" style="text-decoration: none; color: inherit; display: block;">
                     <i class="bi bi-person-plus"></i>
