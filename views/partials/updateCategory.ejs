@@ -1,0 +1,51 @@
+<div
+    class="modal fade"
+    id="editCategoryModal<%= category.categoryId %>"
+    tabindex="-1"
+    aria-labelledby="editCategoryModalLabel<%= category.categoryId %>"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+
+            <form method="POST" action="/categories/<%= category.categoryId %>/edit">
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editCategoryModalLabel<%= category.categoryId %>">
+                        Edit Category
+                    </h5>
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                    ></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editCategoryName<%= category.categoryId %>" class="form-label">
+                            Category Name
+                        </label>
+                        <input
+                            type="text"
+                            id="editCategoryName<%= category.categoryId %>"
+                            name="categoryName"
+                            class="form-control"
+                            value="<%= category.categoryName %>"
+                            maxlength="50"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
