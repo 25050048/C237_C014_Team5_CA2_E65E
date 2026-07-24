@@ -12,112 +12,100 @@
 
         <% if (typeof user !== 'undefined' && user) { %>
 
-            <!-- CHEF NAVBAR -->
+            <!-- ========================= -->
+            <!-- CHEF -->
+            <!-- ========================= -->
             <% if (user.role === 'Chef') { %>
 
-                <a
-                    class="nav-tab"
-                    data-path="/dashboard"
-                    href="/dashboard/overview"
-                >
+                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
                     Kitchen Dashboard
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/expirymonitoring"
-                    href="/expirymonitoring"
-                >
+                <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">
                     Expiry Monitoring
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/ingredient-usage"
-                    href="/ingredient-usage"
-                >
+                <a class="nav-tab" data-path="/ingredient-usage" href="/ingredient-usage">
                     Record Usage
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/expiryrequests"
-                    href="/expiryrequests"
-                >
+                <a class="nav-tab" data-path="/expiryrequests" href="/expiryrequests">
                     Stock Requests
                 </a>
 
-            <!-- MANAGER NAVBAR -->
+            <!-- ========================= -->
+            <!-- MANAGER -->
+            <!-- ========================= -->
             <% } else if (user.role === 'Manager') { %>
 
-                <a
-                    class="nav-tab"
-                    data-path="/board"
-                    href="/board"
-                >
+                <a class="nav-tab" data-path="/board" href="/board">
                     Manager Dashboard
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/manage-inventory"
-                    href="/manage-inventory"
-                >
+                <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">
                     Manage Inventory
                 </a>
 
+                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
+                    Kitchen Dashboard
+                </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/expiryrequests"
-                    href="/expiryrequests"
-                >
+                <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">
+                    Expiry Monitoring
+                </a>
+
+                <a class="nav-tab" data-path="/ingredient-usage" href="/ingredient-usage">
+                    Record Usage
+                </a>
+
+                <a class="nav-tab" data-path="/expiryrequests" href="/expiryrequests">
                     Stock Requests
                 </a>
 
-            <!-- SUPERADMIN NAVBAR -->
+            <!-- ========================= -->
+            <!-- SUPERADMIN -->
+            <!-- ========================= -->
             <% } else if (user.role === 'SuperAdmin') { %>
 
-                <a
-                    class="nav-tab"
-                    data-path="/board"
-                    href="/board"
-                >
+                <a class="nav-tab" data-path="/board" href="/board">
                     Admin Dashboard
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/manage-inventory"
-                    href="/manage-inventory"
-                >
+                <a class="nav-tab" data-path="/manage-inventory" href="/manage-inventory">
                     Manage Inventory
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/user-management"
-                    href="/user-management"
-                >
+                <a class="nav-tab" data-path="/user-management" href="/user-management">
                     User Management
                 </a>
 
-                <a
-                    class="nav-tab"
-                    data-path="/register-manager"
-                    href="/register-manager"
-                >
+                <a class="nav-tab" data-path="/register-manager" href="/register-manager">
                     Register Manager
+                </a>
+
+                <a class="nav-tab" data-path="/dashboard/overview" href="/dashboard/overview">
+                    Kitchen Dashboard
+                </a>
+
+                <a class="nav-tab" data-path="/expirymonitoring" href="/expirymonitoring">
+                    Expiry Monitoring
+                </a>
+
+                <a class="nav-tab" data-path="/ingredient-usage" href="/ingredient-usage">
+                    Record Usage
+                </a>
+
+                <a class="nav-tab" data-path="/expiryrequests" href="/expiryrequests">
+                    Stock Requests
                 </a>
 
             <% } %>
 
-            <!-- PROFILE ICON FOR ALL LOGGED-IN USERS -->
-            <a
-                class="nav-avatar"
-                href="/profile"
-                title="Profile"
-            >
+            <!-- ========================= -->
+            <!-- PROFILE -->
+            <!-- ========================= -->
+
+            <a class="nav-avatar" href="/profile" title="Profile">
 
                 <% if (user.profilePicture) { %>
 
@@ -132,8 +120,7 @@
                     <span class="nav-avatar-fallback">
                         <%= user.fullName
                             ? user.fullName.charAt(0).toUpperCase()
-                            : 'U'
-                        %>
+                            : 'U' %>
                     </span>
 
                 <% } %>
@@ -142,20 +129,11 @@
 
         <% } else { %>
 
-            <!-- NAVBAR FOR USERS WHO ARE NOT LOGGED IN -->
-            <a
-                class="nav-tab"
-                data-path="/register"
-                href="/register"
-            >
+            <a class="nav-tab" data-path="/register" href="/register">
                 Register
             </a>
 
-            <a
-                class="nav-tab"
-                data-path="/login"
-                href="/login"
-            >
+            <a class="nav-tab" data-path="/login" href="/login">
                 Login
             </a>
 
@@ -166,21 +144,18 @@
 </nav>
 
 <script>
-    (function () {
-        const currentPath = window.location.pathname;
+(function () {
+    const currentPath = window.location.pathname;
 
-        document.querySelectorAll('.nav-tab').forEach(link => {
-            const linkPath = link.getAttribute('data-path');
+    document.querySelectorAll(".nav-tab").forEach(link => {
+        const linkPath = link.dataset.path;
 
-            if (
-                currentPath === linkPath ||
-                (
-                    linkPath !== '/' &&
-                    currentPath.startsWith(linkPath + '/')
-                )
-            ) {
-                link.classList.add('active');
-            }
-        });
-    })();
+        if (
+            currentPath === linkPath ||
+            (linkPath !== "/" && currentPath.startsWith(linkPath))
+        ) {
+            link.classList.add("active");
+        }
+    });
+})();
 </script>
