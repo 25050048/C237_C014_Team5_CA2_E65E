@@ -388,7 +388,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     }
 });
 
-//const renderDeleteIngredientPage = (req, res, ingredientId) => {
+const renderDeleteIngredientPage = (req, res, ingredientId) => {
     const sql = 'SELECT * FROM ingredients WHERE ingredientId = ?';
 
     db.query(sql, [ingredientId], (err, results) => {
@@ -409,8 +409,8 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             messages: req.flash('error')
         });
     });
+};
 
-    
 app.get('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
     renderDeleteIngredientPage(req, res, req.params.id);
 });
