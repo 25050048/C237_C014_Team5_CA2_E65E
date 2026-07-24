@@ -411,12 +411,12 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
     });
 };
 
-app.get('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+app.get('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, (req, res) => {
     renderDeleteIngredientPage(req, res, req.params.id);
 });
 
 // Delete ingredient route (Tong Sun)
-app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res) => {
+app.post('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, (req, res) => {
     const ingredientId = req.params.id;
     const sql = 'DELETE FROM ingredients WHERE ingredientId = ?';
 
@@ -438,7 +438,7 @@ app.post('/deleteOldIngredient/:id', checkAuthenticated, checkManager, (req, res
 });
 
 // Add new ingredient route (Tong Sun)
-app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) => {
+app.get('/addNewIngredient', checkAuthenticated, checkSuperAdmin, async (req, res) => {
     try {
         const [categoryRows] = await db.promise().query(
             `SELECT DISTINCT category FROM ingredients WHERE category IS NOT NULL AND category <> '' ORDER BY category`
@@ -459,7 +459,7 @@ app.get('/addNewIngredient', checkAuthenticated, checkManager, async (req, res) 
 });
 
 // Save New Ingredient details to database (Tong Sun)
-app.post('/addNewIngredient', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+app.post('/addNewIngredient', checkAuthenticated, checkSuperAdmin, ingredientUpload.single('image'), (req, res) => {
     const name = String(req.body.name || '').trim();
     const category = String(req.body.category || '').trim();
     const supplier = String(req.body.supplier || '').trim();
@@ -501,7 +501,7 @@ app.post('/addNewIngredient', checkAuthenticated, checkManager, ingredientUpload
 });
 
 // Update the changes made to an ingredient to the database (Tong Sun)
-app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
+app.post('/updateIngredient/:id', checkAuthenticated, checkSuperAdmin, ingredientUpload.single('image'), (req, res) => {
     const ingredientId = req.params.id;
     const name = String(req.body.name || '').trim();
     const category = String(req.body.category || '').trim();
