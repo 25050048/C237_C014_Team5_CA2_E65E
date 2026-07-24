@@ -24,6 +24,7 @@ const profileUpload = multer({
     limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+// Multer for uploading ingredient images (Tong Sun)
 const ingredientUpload = multer({
     storage: multer.diskStorage({
         destination: path.join(__dirname, 'public', 'images'),
