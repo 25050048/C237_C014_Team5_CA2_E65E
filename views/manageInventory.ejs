@@ -198,7 +198,9 @@
             <th>Supplier</th>
             <th>Expiry Date</th>
             <th>Edit</th>
-            <th>Delete</th>
+            <% if (user && user.role === 'SuperAdmin') { %>
+              <th>Delete</th>
+            <% } %>
           </tr>
         </thead>
         <tbody>
@@ -231,7 +233,9 @@
                   Edit
                 </a>
               </td>
-              <td><a href="/deleteOldIngredient/<%= item.ingredientId %>">Delete</a></td>
+              <% if (user && user.role === 'SuperAdmin') { %>
+                <td><a href="/deleteOldIngredient/<%= item.ingredientId %>">Delete</a></td>
+              <% } %>
             </tr>
           <% } %>
         </tbody>
