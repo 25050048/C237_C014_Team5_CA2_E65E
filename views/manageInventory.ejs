@@ -65,7 +65,7 @@
       </div>
     <% } %>
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="mb-0">Manager Inventory Dashboard</h2>
+      <h2 class="mb-0"><%= user && user.role === 'SuperAdmin' ? 'Super Admin Inventory Dashboard' : 'Manager Inventory Dashboard' %></h2>
       <a href="/addNewIngredient" class="btn btn-success">Add Ingredient</a>
     </div>
 
