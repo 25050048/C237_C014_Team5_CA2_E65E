@@ -503,7 +503,7 @@ app.post('/addNewIngredient', checkAuthenticated, checkSuperAdmin, ingredientUpl
 });
 
 // Update the changes made to an ingredient to the database (Tong Sun)
-app.post('/updateIngredient/:id', checkAuthenticated, checkSuperAdmin, ingredientUpload.single('image'), (req, res) => {
+app.post('/updateIngredient/:id', checkAuthenticated, checkManager, ingredientUpload.single('image'), (req, res) => {
     const ingredientId = req.params.id;
     const name = String(req.body.name || '').trim();
     const category = String(req.body.category || '').trim();
