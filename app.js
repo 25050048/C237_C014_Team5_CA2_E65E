@@ -198,7 +198,8 @@ res.render('login', {
 user: req.session.user,
 // Conditional rendering of flash messages for success and error messages
 messages: req.flash('success'),
-errors: req.flash('error')
+errors: req.flash('error'),
+passwordChanged: req.query.passwordChanged === '1'
 });
 });
 
@@ -255,7 +256,7 @@ req.session.user = staffMember;
 
 // Route to the page that matches the account's role (Jun Yuan)
 if (staffMember.role === 'SuperAdmin') {
-res.redirect('/');
+res.redirect('/admin');
 } else if (staffMember.role === 'Manager') {
 res.redirect('/admin');
 } else {
@@ -321,6 +322,63 @@ app.post('/user-management/:id/reactivate', checkAuthenticated, checkSuperAdmin,
         }
         req.flash('success', 'Account reactivated.');
         res.redirect('/user-management');
+    });
+});
+
+// View / edit a single staff member's profile - SuperAdmin only (Jun Yuan)
+app.get('/user-management/:id/edit', checkAuthenticated, checkSuperAdmin, (req, res) => {
+    const staffId = req.params.id;
+    const sql = 'SELECT staffId, fullName, email, role, phone, address, profilePicture, failedAttempts, isLocked FROM staff WHERE staffId = ?';
+    db.query(sql, [staffId], (err, results) => {
+        if (err) {
+            console.error('Load staff profile error:', err);
+            req.flash('error', 'Could not load that account. Please try again.');
+            return res.redirect('/user-management');
+        }
+        if (results.length === 0) {
+            req.flash('error', 'Staff account not found.');
+            return res.redirect('/user-management');
+        }
+        res.render('editStaff', {
+            user: req.session.user,
+            staff: results[0],
+            messages: req.flash('error'),
+            successMessages: req.flash('success')
+        });
+    });
+});
+
+// Reset a staff member's password as SuperAdmin - no current password required (Jun Yuan)
+app.post('/user-management/:id/password', checkAuthenticated, checkSuperAdmin, (req, res) => {
+    const staffId = req.params.id;
+    const { newPassword, confirmPassword } = req.body;
+
+    if (!newPassword || !confirmPassword) {
+        req.flash('error', 'Please fill in both password fields.');
+        return res.redirect(`/user-management/${staffId}/edit`);
+    }
+    if (newPassword.length < 6) {
+        req.flash('error', 'New password should be at least 6 characters long.');
+        return res.redirect(`/user-management/${staffId}/edit`);
+    }
+    if (newPassword !== confirmPassword) {
+        req.flash('error', 'New password and confirmation do not match.');
+        return res.redirect(`/user-management/${staffId}/edit`);
+    }
+
+    const sql = 'UPDATE staff SET password = SHA1(?) WHERE staffId = ?';
+    db.query(sql, [newPassword, staffId], (err, result) => {
+        if (err) {
+            console.error('Admin password reset error:', err);
+            req.flash('error', 'Could not reset that password. Please try again.');
+            return res.redirect(`/user-management/${staffId}/edit`);
+        }
+        if (result.affectedRows === 0) {
+            req.flash('error', 'Staff account not found.');
+            return res.redirect('/user-management');
+        }
+        req.flash('success', 'Password reset successfully.');
+        res.redirect(`/user-management/${staffId}/edit`);
     });
 });
 
@@ -1024,8 +1082,13 @@ app.post('/profile/password', checkAuthenticated, (req, res) => {
                 req.flash('error', 'Could not update your password. Please try again.');
                 return res.redirect('/profile');
             }
-            req.flash('success', 'Password changed successfully.');
-            res.redirect('/profile');
+            // Password changed - log the user out so they have to sign back in with it (Jun Yuan)
+            req.session.destroy((destroyErr) => {
+                if (destroyErr) {
+                    console.error('Session destroy after password change error:', destroyErr);
+                }
+                res.redirect('/login?passwordChanged=1');
+            });
         });
     });
 });
