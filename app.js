@@ -418,10 +418,10 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             LIMIT 1
         `);
         const [categoryRows] = await db.promise().query(`
-            SELECT DISTINCT category
-            FROM ingredients
-            WHERE category IS NOT NULL AND category <> ''
-            ORDER BY category
+            SELECT categoryName
+            FROM categories
+            WHERE categoryName IS NOT NULL AND categoryName <> ''
+            ORDER BY categoryName
         `);
 
         res.render('manageInventory', {
@@ -435,7 +435,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             },
             search,
             category,
-            categories: categoryRows.map(r => r.category),
+            categories: categoryRows.map(r => r.categoryName),
             ingredients: products,
             messages: req.flash('error'),
             successMessages: req.flash('success')
