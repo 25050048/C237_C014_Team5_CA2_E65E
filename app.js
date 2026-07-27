@@ -445,6 +445,10 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             ORDER BY categoryName
         `);
 
+        // Filter out chef-dashboard flash message so it doesn't appear on admin pages
+        const rawErrors = req.flash('error');
+        const errors = rawErrors.filter(m => m !== 'The dashboard is for chef accounts. Use the admin board instead.');
+
         res.render('manageInventory', {
             user: req.session.user,
             staff: req.session.user,
@@ -458,7 +462,7 @@ app.get('/manage-inventory', checkAuthenticated, checkManager, async (req, res) 
             category,
             categories: categoryRows.map(r => r.categoryName),
             ingredients: products,
-            messages: req.flash('error'),
+            messages: errors,
             successMessages: req.flash('success')
         });
     } catch (error) {
@@ -483,10 +487,13 @@ const renderDeleteIngredientPage = (req, res, ingredientId) => {
             return res.redirect('/manage-inventory');
         }
 
+        const rawErrors = req.flash('error');
+        const errors = rawErrors.filter(m => m !== 'The dashboard is for chef accounts. Use the admin board instead.');
+
         res.render('deleteOldIngredient', {
             user: req.session.user,
             ingredient: results[0],
-            messages: req.flash('error')
+            messages: errors
         });
     });
 };
