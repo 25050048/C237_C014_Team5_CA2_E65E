@@ -2027,6 +2027,9 @@ app.get('/expirymonitoring', checkAuthenticated, async (req, res) => {
         }
 
         // Display expirymonitoring.ejs
+        const rawErrors = req.flash('error');
+        const errors = rawErrors.filter(m => m !== 'The dashboard is for chef accounts. Use the admin board instead.');
+
         res.render('expirymonitoring', {
             user: req.session.user,
 
@@ -2035,7 +2038,7 @@ app.get('/expirymonitoring', checkAuthenticated, async (req, res) => {
             items: items,
 
             successMessages: req.flash('success'),
-            errorMessages: req.flash('error')
+            errorMessages: errors
         });
 
     } catch (error) {
