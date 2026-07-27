@@ -2355,7 +2355,7 @@ app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
             return res.redirect('/dashboard/overview');
         }
 
-        res.render('ingredientUsage', {
+        res.render('ingredientusage', {
             user: req.session.user,
             ingredients,
             messages: req.flash('success'),
