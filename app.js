@@ -116,6 +116,16 @@ res.redirect('/');
 }
 };
 
+// Check if user is Manager or Chef (exclude SuperAdmin)
+const checkManagerOrChef = (req, res, next) => {
+    if (req.session.user && (req.session.user.role === 'Manager' || req.session.user.role === 'Chef')) {
+        return next();
+    } else {
+        req.flash('error', 'Access denied');
+        res.redirect('/');
+    }
+};
+
 // (Jun Yuan)
 const requireLogin = checkAuthenticated;
 
@@ -2335,7 +2345,7 @@ app.post('/categories/:id/delete', checkAuthenticated, async (req, res) => {
 // ================[ END TARA ]================
 
 // [GET] Display Ingredient Usage Form (Sean)
-app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
+app.get('/ingredient-usage', checkAuthenticated, checkManagerOrChef, (req, res) => {
 
     const sql = `
         SELECT
@@ -2368,7 +2378,7 @@ app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
 
 
 // [POST] Record Ingredient Usage, Update Inventory & Create Restocking Request (Sean)
-app.post('/ingredient-usage', checkAuthenticated, (req, res) => {
+app.post('/ingredient-usage', checkAuthenticated, checkManagerOrChef, (req, res) => {
 
     const ingredientId = req.body.ingredientId;
     const quantityUsed = parseFloat(req.body.quantityUsed);
