@@ -120,7 +120,18 @@ res.redirect('/');
 const requireLogin = checkAuthenticated;
 
 // Routes for login (Jun Yuan)
+// Send a logged-in user back to their own role's homepage instead of the
+// logged-out landing page - this is what the navbar's "Home" link and any
+// bare redirect to "/" (e.g. after checkManager/checkSuperAdmin denies access)
+// rely on to land people in the right place. (Jun Yuan)
 app.get('/', (req, res) => {
+    if (req.session.user) {
+        if (req.session.user.role === 'Chef') {
+            return res.redirect('/dashboard');
+        } else if (req.session.user.role === 'Manager' || req.session.user.role === 'SuperAdmin') {
+            return res.redirect('/admin');
+        }
+    }
     res.render('index', { user: req.session.user, messages: req.flash('success')});
 });
 
@@ -2344,7 +2355,7 @@ app.get('/ingredient-usage', checkAuthenticated, (req, res) => {
             return res.redirect('/dashboard/overview');
         }
 
-        res.render('ingredientUsage', {
+        res.render('ingredientusage', {
             user: req.session.user,
             ingredients,
             messages: req.flash('success'),
