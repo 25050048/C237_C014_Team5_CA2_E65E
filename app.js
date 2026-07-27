@@ -497,25 +497,40 @@ app.get('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, (req, r
 });
 
 // Delete ingredient route (Tong Sun)
-app.post('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, (req, res) => {
+app.post('/deleteOldIngredient/:id', checkAuthenticated, checkSuperAdmin, async (req, res) => {
     const ingredientId = req.params.id;
-    const sql = 'DELETE FROM ingredients WHERE ingredientId = ?';
 
-    db.query(sql, [ingredientId], (err, result) => {
-        if (err) {
-            console.error('Delete ingredient error:', err);
-            req.flash('error', 'Unable to delete the ingredient.');
-            return res.redirect(`/deleteOldIngredient/${ingredientId}`);
-        }
+    const conn = db.promise();
+
+    try {
+        // Start transaction
+        await conn.query('START TRANSACTION');
+
+        // Delete dependent rows to avoid foreign-key constraint errors
+        await conn.query('DELETE FROM ingredient_usage WHERE ingredientId = ?', [ingredientId]);
+        await conn.query('DELETE FROM restock_requests WHERE ingredientId = ?', [ingredientId]);
+        await conn.query('DELETE FROM expiry_requests WHERE ingredientId = ?', [ingredientId]);
+
+        // Delete the ingredient
+        const [result] = await conn.query('DELETE FROM ingredients WHERE ingredientId = ?', [ingredientId]);
 
         if (result.affectedRows === 0) {
+            await conn.query('ROLLBACK');
             req.flash('error', 'Ingredient not found.');
             return res.redirect('/manage-inventory');
         }
 
+        // Commit transaction
+        await conn.query('COMMIT');
+
         req.flash('success', 'Ingredient deleted successfully.');
-        res.redirect('/manage-inventory');
-    });
+        return res.redirect('/manage-inventory');
+    } catch (err) {
+        try { await conn.query('ROLLBACK'); } catch (e) { /* ignore rollback errors */ }
+        console.error('Delete ingredient error:', err);
+        req.flash('error', 'Unable to delete the ingredient.');
+        return res.redirect(`/deleteOldIngredient/${ingredientId}`);
+    }
 });
 
 // Add new ingredient route (Tong Sun)
