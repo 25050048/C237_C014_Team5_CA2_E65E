@@ -2063,6 +2063,9 @@ app.get(
             const requests =
                 await loadExpiryRequests();
 
+            const rawErrors = req.flash('error');
+            const errors = rawErrors.filter(m => m !== 'The dashboard is for chef accounts. Use the admin board instead.');
+
             res.render(
                 'expiryrequests',
                 {
@@ -2075,7 +2078,7 @@ app.get(
                         req.flash('success'),
 
                     errorMessages:
-                        req.flash('error')
+                        errors
                 }
             );
         } catch (error) {
